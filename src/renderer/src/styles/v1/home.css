@@ -1,0 +1,53 @@
+body.page-home {
+  position: relative;
+  background:
+    radial-gradient(ellipse at 4% 8%, rgba(244, 55, 174, 0.52) 0%, rgba(244, 55, 174, 0.3) 14%, transparent 34%),
+    radial-gradient(ellipse at 96% 10%, rgba(255, 218, 123, 0.74) 0%, rgba(255, 184, 116, 0.4) 16%, transparent 34%),
+    radial-gradient(ellipse at 8% 90%, rgba(255, 248, 246, 0.72) 0%, rgba(255, 214, 224, 0.5) 18%, transparent 43%),
+    radial-gradient(ellipse at 48% 115%, rgba(158, 152, 196, 0.5) 0%, rgba(170, 154, 190, 0.34) 24%, transparent 56%),
+    linear-gradient(105deg, #f8aee4 0%, #ebaeca 42%, #fb939f 72%, #f9c69f 100%);
+}
+
+body.page-home::before,
+body.page-home::after {
+  content: "";
+  position: fixed;
+  top: 6.5vh;
+  bottom: 5vh;
+  width: 18px;
+  border-radius: 999px;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.76) 0%, #fff 4%, #fff 96%, rgba(255, 255, 255, 0.76) 100%);
+  box-shadow:
+    0 0 3px rgba(255, 255, 255, 0.95),
+    0 0 18px 8px rgba(255, 255, 255, 0.68),
+    0 0 48px 18px rgba(255, 92, 184, 0.42),
+    0 34px 24px rgba(81, 75, 138, 0.38);
+}
+
+body.page-home::before {
+  left: clamp(54px, 4.4vw, 78px);
+  box-shadow:
+    0 0 3px rgba(255, 255, 255, 0.95),
+    0 0 18px 8px rgba(255, 255, 255, 0.68),
+    0 0 48px 18px rgba(255, 70, 178, 0.58),
+    18px 0 58px 26px rgba(255, 96, 186, 0.36),
+    0 34px 24px rgba(81, 75, 138, 0.38);
+}
+
+body.page-home::after {
+  right: clamp(54px, 4.4vw, 78px);
+  box-shadow:
+    0 0 3px rgba(255, 255, 255, 0.95),
+    0 0 18px 8px rgba(255, 255, 255, 0.68),
+    0 0 50px 20px rgba(255, 214, 103, 0.6),
+    -18px 0 60px 28px rgba(255, 159, 126, 0.36),
+    0 34px 24px rgba(169, 83, 117, 0.25);
+}
+
+body.page-home #app {
+  position: relative;
+  z-index: 1;
+}

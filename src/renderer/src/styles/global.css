@@ -1,0 +1,19 @@
+/* Helpers không có trong CSS gốc v1 */
+
+.hint {
+  padding: 1vh 1vw;
+  color: #7a3d55;
+  font-size: 0.95vw;
+  font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+.qty-btn {
+  width: 2.5vw;
+  height: 2.5vw;
+  border: 1px solid #ffb8d4;
+  border-radius: 0.5vw;
+  background: transparent;
+  color: #fff0f6;
+  font-size: 1.5vw;
+  cursor: pointer;
+}

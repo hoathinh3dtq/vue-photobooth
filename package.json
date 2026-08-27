@@ -1,0 +1,33 @@
+{
+  "name": "ptb-electron-v2",
+  "version": "0.1.0",
+  "description": "Photobooth Electron v2",
+  "main": "./out/main/index.js",
+  "author": "",
+  "license": "ISC",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
+    "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json --composite false",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web"
+  },
+  "dependencies": {
+    "pinia": "^4.0.3",
+    "vue": "^3.5.0",
+    "vue-router": "^4.5.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.0",
+    "electron": "^41.5.0",
+    "electron-vite": "^4.0.0",
+    "typescript": "^5.8.0",
+    "vue-tsc": "^3.0.0"
+  },
+  "allowScripts": {
+    "electron@41.10.5": true,
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.2": true
+  }
+}
