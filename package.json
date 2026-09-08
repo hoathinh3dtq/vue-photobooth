@@ -9,6 +9,8 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "start": "electron-vite preview",
+    "dist": "electron-builder",
+    "release": "npm run build && npm run dist",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "npm run typecheck:node && npm run typecheck:web"
@@ -21,6 +23,7 @@
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.0",
     "electron": "^41.5.0",
+    "electron-builder": "^26.15.3",
     "electron-vite": "^4.0.0",
     "typescript": "^5.8.0",
     "vue-tsc": "^3.0.0"
