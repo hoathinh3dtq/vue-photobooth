@@ -20,6 +20,10 @@ function thumbUrl(cat: Category): string {
 
 function pick(cat: Category): void {
   selectionStore.select(cat)
+  if (Number(cat.type_idol) === 1) {
+    router.push('/idol-theme')
+    return
+  }
   router.push('/camera')
 }
 

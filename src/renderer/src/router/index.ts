@@ -43,6 +43,11 @@ const router = createRouter({
       component: () => import('../pages/SelectThemePage.vue'),
     },
     {
+      path: '/idol-theme',
+      name: 'idol-theme',
+      component: () => import('../pages/IdolThemePage.vue'),
+    },
+    {
       path: '/finish',
       name: 'finish',
       component: () => import('../pages/FinishPage.vue'),
@@ -63,6 +68,7 @@ const BODY_CLASS_BY_ROUTE: Record<string, string> = {
   'select-type': 'page-select_type_photo',
   camera: 'page-camera',
   'select-theme': 'page-select_theme',
+  'idol-theme': 'page-select_theme',
   finish: 'page-finish',
   // v1 dùng lại nền pastel của home cho các màn event
   'event-action': 'page-home',

@@ -8,6 +8,7 @@ export interface Category {
   thumbnail_url?: string
   print_name?: string
   total_photo?: number
+  type_idol?: number | string
 }
 
 export async function listCategories(userId: number): Promise<Category[]> {
