@@ -26,8 +26,10 @@ export const useSelectionStore = defineStore('selection', {
       categoryId: Number(p.categoryId) || 0,
       totalPhoto: Number(p.totalPhoto) || 0,
       typeIdol: Number(p.typeIdol) || 0,
+      idolIcons: Array.isArray(p.idolIcons) ? (p.idolIcons as unknown[]).map((u) => String(u || '')) : [],
+      idolFrameUrl: String(p.idolFrameUrl || ''),
       capturedPhotos: [] as CapturedPhoto[],
-      selectedTheme: '',
+      selectedTheme: String(p.selectedTheme || ''),
       selectedTone: 'none',
     }
   },
@@ -38,6 +40,17 @@ export const useSelectionStore = defineStore('selection', {
       this.categoryId = cat.id
       this.totalPhoto = cat.total_photo || 0
       this.typeIdol = Number(cat.type_idol) || 0
+      this.idolIcons = []
+      this.selectedTheme = ''
+      this.persistSelection()
+    },
+    saveIdolTheme(themeKey: string, frameUrl: string, icons: string[]): void {
+      this.selectedTheme = themeKey
+      this.idolFrameUrl = frameUrl
+      this.idolIcons = icons
+      this.persistSelection()
+    },
+    persistSelection(): void {
       try {
         localStorage.setItem(
           SELECTION_STORAGE_KEY,
@@ -47,6 +60,9 @@ export const useSelectionStore = defineStore('selection', {
             categoryId: this.categoryId,
             totalPhoto: this.totalPhoto,
             typeIdol: this.typeIdol,
+            selectedTheme: this.selectedTheme,
+            idolFrameUrl: this.idolFrameUrl,
+            idolIcons: this.idolIcons,
           }),
         )
       } catch {

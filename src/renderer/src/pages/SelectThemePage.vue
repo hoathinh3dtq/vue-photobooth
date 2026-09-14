@@ -77,6 +77,11 @@ const TONE_FILTERS: Record<string, string> = {
 
 const samplePhotoUrl = computed(() => selectionStore.capturedPhotos[0]?.image || '')
 
+// IDOL-MODE: theme đã chốt từ màn idol, dựng thẳng không list lại
+const isIdolPreselected = computed(
+  () => selectionStore.typeIdol === 1 && !!selectionStore.selectedTheme && !!selectionStore.idolFrameUrl,
+)
+
 // Đồng bộ tone lên body như v1 (CSS biến --photo-tone-filter đọc theo body[data-photo-tone])
 watch(
   () => selectionStore.selectedTone,
@@ -451,6 +456,28 @@ function renderThemePreview(): void {
       stage.appendChild(photoButton)
     }
 
+    if (isIdolPreselected.value && filledPhotos[index]) {
+      const icons = selectionStore.idolIcons
+      const capIdx = (filledPhotos[index] as FilledPhoto).capturedIndex ?? index
+      if (capIdx < icons.length && icons[capIdx]) {
+        const idolSide =
+          String(configStore.config?.idol_position || 'left').toLowerCase() === 'right' ? 'right' : 'left'
+        const idolImg = document.createElement('img')
+        idolImg.src = icons[capIdx]
+        idolImg.alt = ''
+        idolImg.style.position = 'absolute'
+        idolImg.style.left = `${slot.x}%`
+        idolImg.style.top = `${slot.y + slot.h * 0.2}%`
+        idolImg.style.width = `${slot.w}%`
+        idolImg.style.height = `${slot.h * 0.8}%`
+        idolImg.style.objectFit = 'contain'
+        idolImg.style.objectPosition = idolSide === 'right' ? 'right bottom' : 'left bottom'
+        idolImg.style.pointerEvents = 'none'
+        idolImg.style.zIndex = `${50 + index}`
+        stage.appendChild(idolImg)
+      }
+    }
+
     stage.appendChild(cell)
   }
 }
@@ -753,6 +780,32 @@ function renderCapturedPhotos(): void {
     img.alt = `Anh da chup ${index + 1}`
     img.className = 'preview-img'
     slot.appendChild(img)
+    if (isIdolPreselected.value) {
+      const icons = selectionStore.idolIcons
+      if (index < icons.length && icons[index]) {
+        const idolSide =
+          String(configStore.config?.idol_position || 'left').toLowerCase() === 'right' ? 'right' : 'left'
+        const idolImg = document.createElement('img')
+        idolImg.src = icons[index]
+        idolImg.alt = ''
+        idolImg.className = 'captured-slot-idol'
+        idolImg.style.position = 'absolute'
+        idolImg.style.bottom = '0'
+        idolImg.style.width = '100%'
+        idolImg.style.height = '80%'
+        idolImg.style.objectFit = 'contain'
+        idolImg.style.pointerEvents = 'none'
+        if (idolSide === 'left') {
+          idolImg.style.left = '0'
+          idolImg.style.objectPosition = 'left bottom'
+        } else {
+          idolImg.style.right = '0'
+          idolImg.style.objectPosition = 'right bottom'
+        }
+        slot.style.position = 'relative'
+        slot.appendChild(idolImg)
+      }
+    }
     slot.classList.add('has-photo')
     slot.classList.toggle('is-used', filledPhotos.some((item) => item && item.capturedIndex === index))
     slot.onclick = () => togglePhotoInThemeByIndex(index)
@@ -802,6 +855,7 @@ function renderToCanvas(
   frameImg: HTMLImageElement,
   photoImgs: (HTMLImageElement | null)[],
   filterVal: string,
+  idolImgs: (HTMLImageElement | null)[] = [],
 ): void {
   for (let index = 0; index < slots.length; index++) {
     const photo = filledPhotos[index]
@@ -845,6 +899,28 @@ function renderToCanvas(
   }
 
   ctx.drawImage(frameImg, 0, 0, iw, ih)
+
+  // IDOL-MODE: vẽ icon idol vào từng ô (contain, cao 80%, neo đáy)
+  if (idolImgs.length > 0) {
+    const idolSide =
+      String(configStore.config?.idol_position || 'left').toLowerCase() === 'right' ? 'right' : 'left'
+    for (let index = 0; index < slots.length; index++) {
+      const idolImg = idolImgs[index]
+      if (!idolImg || !idolImg.naturalWidth || !idolImg.naturalHeight) continue
+      const slot = slots[index]
+      const sx = (slot.x / 100) * iw
+      const sy = (slot.y / 100) * ih
+      const sw = (slot.w / 100) * iw
+      const sh = (slot.h / 100) * ih
+      const boxH = sh * 0.8
+      const boxY = sy + sh - boxH
+      const s = Math.min(sw / idolImg.naturalWidth, boxH / idolImg.naturalHeight)
+      const dw = idolImg.naturalWidth * s
+      const dh = idolImg.naturalHeight * s
+      const dx = idolSide === 'right' ? sx + sw - dw : sx
+      ctx.drawImage(idolImg, dx, boxY + (boxH - dh), dw, dh)
+    }
+  }
 }
 
 function capturePrintImage(): Promise<string | null> {
@@ -885,6 +961,28 @@ function capturePrintImage(): Promise<string | null> {
     }))
   }
 
+  const idolImgs: (HTMLImageElement | null)[] = []
+  if (selectionStore.typeIdol === 1) {
+    const icons = selectionStore.idolIcons
+    for (let index = 0; index < slots.length; index++) {
+      const capIdx = filledPhotos[index]?.capturedIndex
+      if (capIdx === undefined || capIdx >= icons.length || !icons[capIdx]) {
+        idolImgs.push(null)
+        continue
+      }
+      const idol = new Image()
+      idol.crossOrigin = 'anonymous'
+      idol.src = icons[capIdx]
+      idolImgs.push(idol)
+      loads.push(
+        new Promise((r) => {
+          idol.onload = () => r()
+          idol.onerror = () => r()
+        }),
+      )
+    }
+  }
+
   return new Promise((resolve) => {
     Promise.all(loads).then(() => {
       try {
@@ -908,7 +1006,7 @@ function capturePrintImage(): Promise<string | null> {
           return
         }
         const filterVal = TONE_FILTERS[selectionStore.selectedTone] || 'none'
-        renderToCanvas(tempCtx, stripW, stripH, slots, frameImg, photoImgs, filterVal)
+        renderToCanvas(tempCtx, stripW, stripH, slots, frameImg, photoImgs, filterVal, idolImgs)
 
         if (isTwoBySix) {
           const leftMargin = 60
@@ -1132,6 +1230,33 @@ async function handlePrintFlow(): Promise<void> {
 }
 
 onMounted(async () => {
+  if (import.meta.env.DEV) {
+    console.log('[select-theme] idol preselected:', isIdolPreselected.value, {
+      typeIdol: selectionStore.typeIdol,
+      theme: selectionStore.selectedTheme,
+      hasFrame: !!selectionStore.idolFrameUrl,
+      icons: selectionStore.idolIcons.length,
+      photos: selectionStore.capturedPhotos.length,
+    })
+  }
+  if (isIdolPreselected.value) {
+    if (selectionStore.capturedPhotos.length === 0) {
+      flowStore.go('camera')
+      return
+    }
+    const themeKey = selectionStore.selectedTheme
+    themes[themeKey] = {
+      buttonId: themeKey,
+      src: selectionStore.idolFrameUrl,
+      ratio: '',
+      slots: [],
+      processedSrc: '',
+      totalImage: selectionStore.capturedPhotos.length || selectionStore.idolIcons.length || 0,
+    }
+    loading.value = false
+    selectTheme(themeKey)
+    return
+  }
   await loadMoreThemes()
   loading.value = false
   renderThemePreview()
@@ -1155,7 +1280,7 @@ onMounted(async () => {
   <div class="theme-builder">
     <section class="neon-panel theme-sidebar">
       <h2 class="neon-title"><span>✦</span> CHỌN THEME <span>✦</span></h2>
-      <div class="theme-choice-strip">
+      <div v-if="!isIdolPreselected" class="theme-choice-strip">
         <button class="theme-nav" id="theme-nav-left" type="button" @click="scrollThemeChoices(-1)">&#8249;</button>
         <div class="theme-choice-list" id="theme-choice-list">
           <p v-if="loading" class="hint">Đang tải...</p>

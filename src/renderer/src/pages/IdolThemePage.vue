@@ -67,6 +67,7 @@ function pickField(item: ThemeItem, keys: string[]): unknown {
 function extractIcons(item: ThemeItem): Array<{ id: number | string; url: string }> {
   const raw = pickField(item, ['idol_icons', 'idolIcons', 'icons'])
   if (!Array.isArray(raw)) return []
+  // Thứ tự icon giữ nguyên BE trả về; idol gắn theo capturedIndex của từng ảnh
   return (raw as Array<Record<string, unknown>>)
     .map((it, i) => ({
       id: (it.id as number | string) ?? i,
@@ -108,7 +109,11 @@ async function load(): Promise<void> {
 }
 
 function choose(card: IdolThemeCard): void {
-  selectionStore.selectedTheme = `theme-${card.id}`
+  selectionStore.saveIdolTheme(
+    `theme-${card.id}`,
+    card.frameUrl,
+    card.icons.map((icon) => icon.url),
+  )
   router.push('/camera')
 }
 

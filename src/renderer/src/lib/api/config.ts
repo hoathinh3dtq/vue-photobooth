@@ -4,6 +4,7 @@ export interface AppConfig {
   total_take_photo?: number
   time_to_take?: number
   mirror_camera?: number
+  idol_position?: string
   re_take?: number
   hide_logout_button?: number
   booth_type?: number | string

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useConfigStore } from '../stores/config'
 import { useFlowStore } from '../stores/flow'
 import { useSelectionStore } from '../stores/selection'
@@ -21,6 +21,7 @@ const capturedPreviewRef = ref<HTMLImageElement | null>(null)
 const flashRef = ref<HTMLDivElement | null>(null)
 const countdownRef = ref<HTMLDivElement | null>(null)
 const previewRef = ref<HTMLDivElement | null>(null)
+const idolOverlayRef = ref<HTMLImageElement | null>(null)
 
 const photos = ref<CapturedPhoto[]>([])
 const currentIndex = ref(-1)
@@ -44,6 +45,36 @@ const retakeDisabled = computed(
 const themeDisabled = computed(() => isCapturing.value || !captureCompleted.value)
 const returnDisabled = computed(() => isCapturing.value || captureStarted.value)
 
+// IDOL-MODE: mỗi shot hiện đúng icon thứ tự icons[activeShotIndex]
+const activeShotIndex = ref(-1)
+const isReviewing = ref(false)
+const isIdolMode = computed(() => selectionStore.typeIdol === 1 && selectionStore.idolIcons.length > 0)
+const activeIdolUrl = computed(() => {
+  if (!isIdolMode.value || !isCapturing.value) return ''
+  const icons = selectionStore.idolIcons
+  if (activeShotIndex.value < 0 || activeShotIndex.value >= icons.length) return ''
+  return icons[activeShotIndex.value]
+})
+const reviewIdolUrl = computed(() => {
+  if (!isIdolMode.value || isCapturing.value || !isReviewing.value) return ''
+  const icons = selectionStore.idolIcons
+  if (currentIndex.value < 0 || currentIndex.value >= icons.length) return ''
+  return icons[currentIndex.value]
+})
+const visibleIdolUrl = computed(() => activeIdolUrl.value || reviewIdolUrl.value)
+// IDOL-MODE: vị trí idol, mặc định trái; BE có thể override qua config idol_position
+const idolSide = computed(() => {
+  const v = String(configStore.config?.idol_position || 'left').toLowerCase()
+  return v === 'right' ? 'right' : 'left'
+})
+const idolPosClass = computed(() => (idolSide.value === 'left' ? 'idol-left' : ''))
+function previewIdolUrl(index: number): string {
+  if (!isIdolMode.value) return ''
+  const icons = selectionStore.idolIcons
+  if (index < 0 || index >= icons.length) return ''
+  return icons[index]
+}
+
 function wait(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms))
 }
@@ -60,6 +91,14 @@ function applyMirrorTo(el: HTMLElement, withCrop = true): void {
   else if (val === 3) el.style.transform = `scale(${-s}, -1)`
   else el.style.transform = `scale(${s}, 1)`
 }
+
+// IDOL-MODE: overlay idol mirror/crop giống hệt video live
+watch(visibleIdolUrl, async (url) => {
+  if (!url) return
+  await nextTick()
+  const el = idolOverlayRef.value
+  if (el) applyMirrorTo(el, true)
+})
 
 // Tự đo viền đen (pillarbox) của nguồn HDMI/camera và crop bằng transform.
 // USE_AUTO_CROP = false -> quay về hardcode 119% / -93px.
@@ -348,7 +387,15 @@ async function captureImage(replaceIndex = -1): Promise<boolean> {
   // Ưu tiên chụp qua DSLR provider (Canon/Nikon/...) ở main process.
   // Nếu không có provider (chưa cấu hình/SDK thiếu) sẽ trả về lỗi -> fallback webcam.
   try {
-    const res = await window.electronAPI.camera.capture()
+    let timedOut = false
+    const res = await Promise.race([
+      window.electronAPI.camera.capture(),
+      wait(15000).then(() => {
+        timedOut = true
+        return null
+      }),
+    ])
+    if (timedOut) console.warn('[camera] DSLR capture timeout, fallback webcam')
     if (res && res.ok && res.imageDataUrl) {
       image = res.imageDataUrl
       fromDslr = true
@@ -393,6 +440,7 @@ async function captureImage(replaceIndex = -1): Promise<boolean> {
 }
 
 function fadeBackToLive(): void {
+  isReviewing.value = false
   const video = videoRef.value
   const capturedPreview = capturedPreviewRef.value
   if (!video || !capturedPreview) return
@@ -422,19 +470,26 @@ async function startAutoCapture(): Promise<void> {
   captureCompleted.value = false
   photos.value = []
   currentIndex.value = -1
+  isReviewing.value = false
   document.body.classList.add('is-capturing')
   fadeBackToLive()
 
-  for (let i = 0; i < totalTake.value; i++) {
-    await showCountdown(timeTake.value)
-    const captured = await captureImage()
-    if (!captured) break
-    await wait(2000)
-    fadeBackToLive()
+  try {
+    for (let i = 0; i < totalTake.value; i++) {
+      activeShotIndex.value = i
+      await showCountdown(timeTake.value)
+      const captured = await captureImage()
+      if (!captured) break
+      await wait(2000)
+      fadeBackToLive()
+    }
+  } catch (e) {
+    console.error('[camera] auto capture failed:', e)
+  } finally {
+    document.body.classList.remove('is-capturing')
+    isCapturing.value = false
+    activeShotIndex.value = -1
   }
-
-  document.body.classList.remove('is-capturing')
-  isCapturing.value = false
   captureCompleted.value = photos.value.length === totalTake.value
   renderPreview()
 }
@@ -453,12 +508,19 @@ async function retakeImage(): Promise<void> {
   photo.retakeCount++
   const replaceIndex = currentIndex.value
 
-  fadeBackToLive()
-  await showCountdown(timeTake.value)
-  await captureImage(replaceIndex)
-
-  isCapturing.value = false
-  document.body.classList.remove('is-capturing')
+  try {
+    fadeBackToLive()
+    activeShotIndex.value = replaceIndex
+    await showCountdown(timeTake.value)
+    await captureImage(replaceIndex)
+  } catch (e) {
+    console.error('[camera] retake failed:', e)
+  } finally {
+    document.body.classList.remove('is-capturing')
+    isCapturing.value = false
+    activeShotIndex.value = -1
+  }
+  isReviewing.value = true
 }
 
 function renderPreview(): void {
@@ -468,6 +530,7 @@ function renderPreview(): void {
 
 function selectPhoto(index: number): void {
   currentIndex.value = index
+  isReviewing.value = true
   const video = videoRef.value
   const capturedPreview = capturedPreviewRef.value
   if (!video || !capturedPreview) return
@@ -530,6 +593,14 @@ onBeforeUnmount(() => {
       <div class="camera-screen">
         <video id="video" ref="videoRef" autoplay playsinline muted></video>
         <img id="captured-preview" ref="capturedPreviewRef" />
+        <img
+          v-if="visibleIdolUrl"
+          id="idol-shot-overlay"
+          ref="idolOverlayRef"
+          :class="idolPosClass"
+          :src="visibleIdolUrl"
+          alt=""
+        />
         <div id="flash" ref="flashRef"></div>
         <div id="countdown" ref="countdownRef"></div>
         <p v-if="cameraError" class="camera-error-overlay">{{ cameraError }}</p>
@@ -539,15 +610,26 @@ onBeforeUnmount(() => {
           &#8249;
         </button>
         <div id="preview" ref="previewRef" aria-label="Anh da chup">
-          <img
+          <span
             v-for="(p, index) in photos"
             :key="index"
-            class="preview-img"
-            :class="{ active: index === currentIndex }"
-            :src="p.image"
-            alt=""
-            @click="selectPhoto(index)"
-          />
+            class="preview-thumb"
+          >
+            <img
+              class="preview-img"
+              :class="{ active: index === currentIndex }"
+              :src="p.image"
+              alt=""
+              @click="selectPhoto(index)"
+            />
+            <img
+              v-if="previewIdolUrl(index)"
+              class="preview-thumb-idol"
+              :class="idolPosClass"
+              :src="previewIdolUrl(index)"
+              alt=""
+            />
+          </span>
         </div>
         <button class="preview-nav" id="preview-right" type="button" aria-label="Xem anh tiep" @click="scrollPreview(1)">
           &#8250;
@@ -588,7 +670,7 @@ onBeforeUnmount(() => {
             <path d="M12 3C7 3 3 6.8 3 11.5C3 16.2 6.8 20 11.5 20H13C14.4 20 15 18.4 14.1 17.4C13.5 16.7 14 15.6 15 15.6H16.4C19.1 15.6 21 13.7 21 11.1C21 6.6 17 3 12 3Z" />
           </svg>
         </span>
-        <p class="text-btn-start">Chọn theme</p>
+          <p class="text-btn-start">{{ isIdolMode ? 'Ghép theme' : 'Chọn theme' }}</p>
       </button>
 
       <button class="btn-page-cam" id="return-select-type" type="button" :disabled="returnDisabled" @click="goBack">
@@ -615,5 +697,48 @@ onBeforeUnmount(() => {
   font-size: 0.95vw;
   font-weight: 600;
   background: rgba(10, 0, 8, 0.72);
+}
+#idol-shot-overlay {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  height: 80%;
+  max-width: 100%;
+  object-fit: contain;
+  object-position: right bottom;
+  pointer-events: none;
+  z-index: 20;
+}
+.preview-thumb {
+  position: relative;
+  flex: 0 0 auto;
+  height: 150px;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border-radius: 10px;
+}
+.preview-thumb .preview-img {
+  width: 100%;
+  height: 100%;
+  flex: none;
+}
+.preview-thumb-idol {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 80%;
+  object-fit: contain;
+  object-position: right bottom;
+  pointer-events: none;
+}
+#idol-shot-overlay.idol-left,
+.preview-thumb-idol.idol-left {
+  left: 0;
+  right: auto;
+  object-position: left bottom;
+}
+#preview {
+  min-height: 172px;
 }
 </style>
