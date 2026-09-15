@@ -94,13 +94,37 @@ async function printCopies(count: number): Promise<boolean> {
     return false
   }
   const opts = sessionStore.lastPrintOptions
+  if (!opts.printName) {
+    showModal(
+      `<p>❌ Không tìm thấy máy in. Kiểm tra tên máy in trong cài đặt. (PRINTER_NOT_FOUND)</p><button class="modal-ok-btn" id="modal-ok-btn">OK</button>`,
+    )
+    document.getElementById('modal-ok-btn')!.onclick = hideModal
+    return false
+  }
   for (let i = 0; i < count; i++) {
     showModal(`<p>Đang in... (${i + 1}/${count})</p>`, false)
-    const res = await window.electronAPI.printImage(sessionStore.lastPrintedImage, opts)
-    hideModal()
-    if (!res || !res.ok) {
-      const errMsg = (res && res.error) || 'Lỗi máy in'
-      showModal(`<p>In thất bại (bản ${i + 1}/${count}): ${errMsg}</p><button class="modal-ok-btn" id="modal-ok-btn">OK</button>`)
+    try {
+      // Timeout 40s để không treo modal "Đang in..." khi driver bận
+      const res = await Promise.race([
+        window.electronAPI.printImage(sessionStore.lastPrintedImage, opts),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 40000)),
+      ])
+      hideModal()
+      if (!res) {
+        showModal(`<p>In thất bại (bản ${i + 1}/${count}): PRINT_TIMEOUT - driver quá 40s, kiểm tra giấy/mực/máy in.</p><button class="modal-ok-btn" id="modal-ok-btn">OK</button>`)
+        document.getElementById('modal-ok-btn')!.onclick = hideModal
+        return false
+      }
+      if (!res.ok) {
+        const errMsg = res.error || 'Lỗi máy in'
+        const detail = res.detail ? `: ${res.detail}` : ''
+        showModal(`<p>In thất bại (bản ${i + 1}/${count}): ${errMsg}${detail}</p><button class="modal-ok-btn" id="modal-ok-btn">OK</button>`)
+        document.getElementById('modal-ok-btn')!.onclick = hideModal
+        return false
+      }
+    } catch (e) {
+      hideModal()
+      showModal(`<p>In thất bại (bản ${i + 1}/${count}): ${(e as Error).message}</p><button class="modal-ok-btn" id="modal-ok-btn">OK</button>`)
       document.getElementById('modal-ok-btn')!.onclick = hideModal
       return false
     }

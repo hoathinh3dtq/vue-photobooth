@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useConfigStore } from '../stores/config'
 import { useFlowStore } from '../stores/flow'
 import { useSelectionStore } from '../stores/selection'
@@ -97,13 +97,9 @@ function applyMirrorTo(el: HTMLElement, withCrop = true): void {
   else el.style.transform = `scale(${s}, 1)`
 }
 
-// IDOL-MODE: overlay idol mirror/crop giống hệt video live
-watch(visibleIdolUrl, async (url) => {
-  if (!url) return
-  await nextTick()
-  const el = idolOverlayRef.value
-  if (el) applyMirrorTo(el, true)
-})
+// IDOL-MODE: overlay idol KHÔNG lật theo gương.
+// Gương chỉ áp cho hình camera; idol là graphic thiết kế sẵn (mặt/chữ),
+// lật theo sẽ bị ngược. Vị trí trái/phải giữ nguyên theo theme để khớp ảnh in.
 
 // Tự đo viền đen (pillarbox) của nguồn HDMI/camera và crop bằng transform.
 // USE_AUTO_CROP = false -> quay về hardcode 119% / -93px.
@@ -387,7 +383,6 @@ async function captureImage(replaceIndex = -1): Promise<boolean> {
   }
 
   let image = ''
-  let fromDslr = false
 
   // Ưu tiên chụp qua DSLR provider (Canon/Nikon/...) ở main process.
   // Nếu không có provider (chưa cấu hình/SDK thiếu) sẽ trả về lỗi -> fallback webcam.
@@ -403,7 +398,6 @@ async function captureImage(replaceIndex = -1): Promise<boolean> {
     if (timedOut) console.warn('[camera] DSLR capture timeout, fallback webcam')
     if (res && res.ok && res.imageDataUrl) {
       image = res.imageDataUrl
-      fromDslr = true
     }
   } catch (e) {
     console.warn('[camera] DSLR capture error:', e)
@@ -428,13 +422,14 @@ async function captureImage(replaceIndex = -1): Promise<boolean> {
   if (capturedPreview) {
     capturedPreview.style.display = 'block'
     capturedPreview.style.opacity = '0'
-    if (!fromDslr) applyMirrorTo(capturedPreview, false)
+    // Áp gương cho mọi nguồn (DSLR lẫn webcam) để live và ảnh lưu luôn khớp nhau
+    applyMirrorTo(capturedPreview, false)
     capturedPreview.src = image
     capturedPreview.style.opacity = '1'
   }
 
-  // Chỉ flip khi là ảnh webcam fallback (ảnh DSLR đã đúng hướng gốc)
-  if (!fromDslr) image = await flipImage(image)
+  // Flip dữ liệu ảnh theo mirror_camera cho mọi nguồn (trước đây bỏ qua DSLR -> lệch live/ảnh)
+  image = await flipImage(image)
 
   saveCapturedImage(image, replaceIndex)
 
@@ -707,7 +702,7 @@ onBeforeUnmount(() => {
   position: absolute;
   right: 0;
   bottom: 0;
-  height: 80%;
+  height: 90%;
   max-width: 100%;
   object-fit: contain;
   object-position: right bottom;
@@ -732,7 +727,7 @@ onBeforeUnmount(() => {
   right: 0;
   bottom: 0;
   width: 100%;
-  height: 80%;
+  height: 90%;
   object-fit: contain;
   object-position: right bottom;
   pointer-events: none;

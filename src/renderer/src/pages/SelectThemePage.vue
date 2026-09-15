@@ -466,9 +466,9 @@ function renderThemePreview(): void {
         idolImg.alt = ''
         idolImg.style.position = 'absolute'
         idolImg.style.left = `${slot.x}%`
-        idolImg.style.top = `${slot.y + slot.h * 0.2}%`
+        idolImg.style.top = `${slot.y + slot.h * 0.1}%`
         idolImg.style.width = `${slot.w}%`
-        idolImg.style.height = `${slot.h * 0.8}%`
+        idolImg.style.height = `${slot.h * 0.9}%`
         idolImg.style.objectFit = 'contain'
         idolImg.style.objectPosition = icon.side === 'right' ? 'right bottom' : 'left bottom'
         idolImg.style.pointerEvents = 'none'
@@ -790,7 +790,7 @@ function renderCapturedPhotos(): void {
         idolImg.style.position = 'absolute'
         idolImg.style.bottom = '0'
         idolImg.style.width = '100%'
-        idolImg.style.height = '80%'
+        idolImg.style.height = '90%'
         idolImg.style.objectFit = 'contain'
         idolImg.style.pointerEvents = 'none'
         if (icon.side === 'left') {
@@ -898,7 +898,7 @@ function renderToCanvas(
 
   ctx.drawImage(frameImg, 0, 0, iw, ih)
 
-  // IDOL-MODE: vẽ icon idol vào từng ô (contain, cao 80%, neo đáy, side theo từng icon)
+  // IDOL-MODE: vẽ icon idol vào từng ô (contain, cao 90%, neo đáy, side theo từng icon)
   if (idolDraws.length > 0) {
     for (let index = 0; index < slots.length; index++) {
       const draw = idolDraws[index]
@@ -909,7 +909,7 @@ function renderToCanvas(
       const sy = (slot.y / 100) * ih
       const sw = (slot.w / 100) * iw
       const sh = (slot.h / 100) * ih
-      const boxH = sh * 0.8
+      const boxH = sh * 0.9
       const boxY = sy + sh - boxH
       const s = Math.min(sw / idolImg.naturalWidth, boxH / idolImg.naturalHeight)
       const dw = idolImg.naturalWidth * s
@@ -1136,6 +1136,9 @@ function showPrintError(raw: string): void {
   const msgs: Record<string, string> = {
     PRINTER_OFFLINE: 'Máy in đang offline. Bỏ chọn "Use Printer Offline" trong Windows và kiểm tra cáp kết nối.',
     PRINTER_NOT_FOUND: 'Không tìm thấy máy in. Kiểm tra tên máy in trong cài đặt.',
+    PRINTER_CHECK_FAIL: `Không kiểm tra được máy in: ${detail}.`,
+    PRINT_TIMEOUT: 'In quá 30-40s không phản hồi (driver bận?). Kiểm tra giấy/mực/máy in rồi thử in lại ở màn Finish.',
+    PRINT_EMPTY_RESPONSE: 'Máy in không trả về kết quả. Kiểm tra máy in và thử lại.',
     PRINT_STUCK: 'Job in đã gửi vào spooler nhưng máy in không xử lý. Kiểm tra giấy/mực/tình trạng máy in.',
     PRINT_FAIL: `Lỗi máy in: ${detail}. Kiểm tra máy in và thử lại.`,
     TEMP_IMAGE_WRITE_FAIL: 'Không thể tạo file ảnh tạm thời.',
@@ -1180,10 +1183,22 @@ async function doPrint(existingDataUrl?: string): Promise<void> {
     const rotated = await rotateDataUrl(dataUrlWithQR)
     const copies = flowStore.flow.selectTheme.copies()
     const printType = isTwoBySix ? '2x6' : (selectionStore.type || '4x6')
-    let lastError: { ok: boolean; error?: string } | null = null
+    if (!selectionStore.printName) {
+      loaderOverlay.remove()
+      showPrintError('PRINTER_NOT_FOUND')
+      return
+    }
+    let lastError: { ok: boolean; error?: string; detail?: string } | null = null
     for (let c = 0; c < copies; c++) {
-      const success = await window.electronAPI.printImage(rotated, { type: printType, printName: selectionStore.printName })
-      if (!success || !success.ok) {
+      const success = await Promise.race([
+        window.electronAPI.printImage(rotated, { type: printType, printName: selectionStore.printName }),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 40000)),
+      ])
+      if (!success) {
+        lastError = { ok: false, error: 'PRINT_TIMEOUT' }
+        break
+      }
+      if (!success.ok) {
         lastError = success
         break
       }
