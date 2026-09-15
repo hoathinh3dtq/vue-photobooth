@@ -7,6 +7,31 @@ export interface CapturedPhoto {
   filteredImage?: string
 }
 
+export interface IdolIcon {
+  url: string
+  side: 'left' | 'right'
+}
+
+// Vị trí idol theo từng icon: 0/'left' = trái, 1/'right' = phải, thiếu thì trái
+export function normalizeIdolSide(value: unknown): 'left' | 'right' {
+  const v = String(value ?? 'left').trim().toLowerCase()
+  if (v === '1' || v === 'right' || v === 'r') return 'right'
+  return 'left'
+}
+
+function normalizeIdolIcons(value: unknown): IdolIcon[] {
+  if (!Array.isArray(value)) return []
+  return (value as unknown[])
+    .map((it): IdolIcon | null => {
+      if (typeof it === 'string') return it ? { url: it, side: 'left' } : null
+      const o = it as Record<string, unknown>
+      const url = String(o.url ?? o.image_url ?? o.src ?? '')
+      if (!url) return null
+      return { url, side: normalizeIdolSide(o.side ?? o.position ?? o.pos ?? o.align) }
+    })
+    .filter((it): it is IdolIcon => it !== null)
+}
+
 const SELECTION_STORAGE_KEY = 'pb_selection'
 
 function loadPersistedSelection(): Record<string, unknown> {
@@ -26,7 +51,7 @@ export const useSelectionStore = defineStore('selection', {
       categoryId: Number(p.categoryId) || 0,
       totalPhoto: Number(p.totalPhoto) || 0,
       typeIdol: Number(p.typeIdol) || 0,
-      idolIcons: Array.isArray(p.idolIcons) ? (p.idolIcons as unknown[]).map((u) => String(u || '')) : [],
+      idolIcons: normalizeIdolIcons(p.idolIcons),
       idolFrameUrl: String(p.idolFrameUrl || ''),
       capturedPhotos: [] as CapturedPhoto[],
       selectedTheme: String(p.selectedTheme || ''),
@@ -44,7 +69,7 @@ export const useSelectionStore = defineStore('selection', {
       this.selectedTheme = ''
       this.persistSelection()
     },
-    saveIdolTheme(themeKey: string, frameUrl: string, icons: string[]): void {
+    saveIdolTheme(themeKey: string, frameUrl: string, icons: IdolIcon[]): void {
       this.selectedTheme = themeKey
       this.idolFrameUrl = frameUrl
       this.idolIcons = icons

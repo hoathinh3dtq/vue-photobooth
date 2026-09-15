@@ -53,26 +53,31 @@ const activeIdolUrl = computed(() => {
   if (!isIdolMode.value || !isCapturing.value) return ''
   const icons = selectionStore.idolIcons
   if (activeShotIndex.value < 0 || activeShotIndex.value >= icons.length) return ''
-  return icons[activeShotIndex.value]
+  return icons[activeShotIndex.value]?.url || ''
 })
 const reviewIdolUrl = computed(() => {
   if (!isIdolMode.value || isCapturing.value || !isReviewing.value) return ''
   const icons = selectionStore.idolIcons
   if (currentIndex.value < 0 || currentIndex.value >= icons.length) return ''
-  return icons[currentIndex.value]
+  return icons[currentIndex.value]?.url || ''
 })
 const visibleIdolUrl = computed(() => activeIdolUrl.value || reviewIdolUrl.value)
-// IDOL-MODE: vị trí idol, mặc định trái; BE có thể override qua config idol_position
-const idolSide = computed(() => {
-  const v = String(configStore.config?.idol_position || 'left').toLowerCase()
-  return v === 'right' ? 'right' : 'left'
+// IDOL-MODE: vị trí theo từng icon (position 0 = trái, 1 = phải)
+const visibleIdolSide = computed<'left' | 'right'>(() => {
+  const icons = selectionStore.idolIcons
+  if (activeIdolUrl.value) return icons[activeShotIndex.value]?.side || 'left'
+  if (reviewIdolUrl.value) return icons[currentIndex.value]?.side || 'left'
+  return 'left'
 })
-const idolPosClass = computed(() => (idolSide.value === 'left' ? 'idol-left' : ''))
 function previewIdolUrl(index: number): string {
   if (!isIdolMode.value) return ''
   const icons = selectionStore.idolIcons
   if (index < 0 || index >= icons.length) return ''
-  return icons[index]
+  return icons[index]?.url || ''
+}
+function previewIdolSide(index: number): 'left' | 'right' {
+  if (!isIdolMode.value) return 'left'
+  return selectionStore.idolIcons[index]?.side || 'left'
 }
 
 function wait(ms: number): Promise<void> {
@@ -597,7 +602,7 @@ onBeforeUnmount(() => {
           v-if="visibleIdolUrl"
           id="idol-shot-overlay"
           ref="idolOverlayRef"
-          :class="idolPosClass"
+          :class="{ 'idol-left': visibleIdolSide === 'left' }"
           :src="visibleIdolUrl"
           alt=""
         />
@@ -625,7 +630,7 @@ onBeforeUnmount(() => {
             <img
               v-if="previewIdolUrl(index)"
               class="preview-thumb-idol"
-              :class="idolPosClass"
+              :class="{ 'idol-left': previewIdolSide(index) === 'left' }"
               :src="previewIdolUrl(index)"
               alt=""
             />

@@ -3,12 +3,12 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { listThemesByCategory, type ThemeItem } from '../lib/api/themes'
 import { STORAGE_URL } from '../lib/api/client'
-import { useSelectionStore } from '../stores/selection'
+import { useSelectionStore, normalizeIdolSide, type IdolIcon } from '../stores/selection'
 
 interface IdolThemeCard {
   id: number | string
   frameUrl: string
-  icons: Array<{ id: number | string; url: string }>
+  icons: Array<{ id: number | string; url: string; side: 'left' | 'right' }>
   idolName: string
 }
 
@@ -64,16 +64,21 @@ function pickField(item: ThemeItem, keys: string[]): unknown {
   return ''
 }
 
-function extractIcons(item: ThemeItem): Array<{ id: number | string; url: string }> {
+function extractIcons(item: ThemeItem): Array<{ id: number | string; url: string; side: 'left' | 'right' }> {
   const raw = pickField(item, ['idol_icons', 'idolIcons', 'icons'])
   if (!Array.isArray(raw)) return []
   // Thứ tự icon giữ nguyên BE trả về; idol gắn theo capturedIndex của từng ảnh
   return (raw as Array<Record<string, unknown>>)
-    .map((it, i) => ({
-      id: (it.id as number | string) ?? i,
-      url: resolveUrl(it.image_url ?? it.src ?? it.url),
-    }))
-    .filter((it) => it.url)
+    .map((it, i) => {
+      const url = resolveUrl(it.image_url ?? it.src ?? it.url)
+      if (!url) return null
+      return {
+        id: (it.id as number | string) ?? i,
+        url,
+        side: normalizeIdolSide(it.side ?? it.position ?? it.pos ?? it.align),
+      }
+    })
+    .filter((it): it is { id: number | string; url: string; side: 'left' | 'right' } => it !== null)
 }
 
 function toCard(item: ThemeItem): IdolThemeCard {
@@ -109,11 +114,8 @@ async function load(): Promise<void> {
 }
 
 function choose(card: IdolThemeCard): void {
-  selectionStore.saveIdolTheme(
-    `theme-${card.id}`,
-    card.frameUrl,
-    card.icons.map((icon) => icon.url),
-  )
+  const icons: IdolIcon[] = card.icons.map((icon) => ({ url: icon.url, side: icon.side }))
+  selectionStore.saveIdolTheme(`theme-${card.id}`, card.frameUrl, icons)
   router.push('/camera')
 }
 

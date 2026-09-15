@@ -459,11 +459,10 @@ function renderThemePreview(): void {
     if (isIdolPreselected.value && filledPhotos[index]) {
       const icons = selectionStore.idolIcons
       const capIdx = (filledPhotos[index] as FilledPhoto).capturedIndex ?? index
-      if (capIdx < icons.length && icons[capIdx]) {
-        const idolSide =
-          String(configStore.config?.idol_position || 'left').toLowerCase() === 'right' ? 'right' : 'left'
+      const icon = icons[capIdx]
+      if (icon && icon.url) {
         const idolImg = document.createElement('img')
-        idolImg.src = icons[capIdx]
+        idolImg.src = icon.url
         idolImg.alt = ''
         idolImg.style.position = 'absolute'
         idolImg.style.left = `${slot.x}%`
@@ -471,7 +470,7 @@ function renderThemePreview(): void {
         idolImg.style.width = `${slot.w}%`
         idolImg.style.height = `${slot.h * 0.8}%`
         idolImg.style.objectFit = 'contain'
-        idolImg.style.objectPosition = idolSide === 'right' ? 'right bottom' : 'left bottom'
+        idolImg.style.objectPosition = icon.side === 'right' ? 'right bottom' : 'left bottom'
         idolImg.style.pointerEvents = 'none'
         idolImg.style.zIndex = `${50 + index}`
         stage.appendChild(idolImg)
@@ -782,11 +781,10 @@ function renderCapturedPhotos(): void {
     slot.appendChild(img)
     if (isIdolPreselected.value) {
       const icons = selectionStore.idolIcons
-      if (index < icons.length && icons[index]) {
-        const idolSide =
-          String(configStore.config?.idol_position || 'left').toLowerCase() === 'right' ? 'right' : 'left'
+      const icon = icons[index]
+      if (icon && icon.url) {
         const idolImg = document.createElement('img')
-        idolImg.src = icons[index]
+        idolImg.src = icon.url
         idolImg.alt = ''
         idolImg.className = 'captured-slot-idol'
         idolImg.style.position = 'absolute'
@@ -795,7 +793,7 @@ function renderCapturedPhotos(): void {
         idolImg.style.height = '80%'
         idolImg.style.objectFit = 'contain'
         idolImg.style.pointerEvents = 'none'
-        if (idolSide === 'left') {
+        if (icon.side === 'left') {
           idolImg.style.left = '0'
           idolImg.style.objectPosition = 'left bottom'
         } else {
@@ -855,7 +853,7 @@ function renderToCanvas(
   frameImg: HTMLImageElement,
   photoImgs: (HTMLImageElement | null)[],
   filterVal: string,
-  idolImgs: (HTMLImageElement | null)[] = [],
+  idolDraws: Array<{ img: HTMLImageElement; side: 'left' | 'right' } | null> = [],
 ): void {
   for (let index = 0; index < slots.length; index++) {
     const photo = filledPhotos[index]
@@ -900,12 +898,11 @@ function renderToCanvas(
 
   ctx.drawImage(frameImg, 0, 0, iw, ih)
 
-  // IDOL-MODE: vẽ icon idol vào từng ô (contain, cao 80%, neo đáy)
-  if (idolImgs.length > 0) {
-    const idolSide =
-      String(configStore.config?.idol_position || 'left').toLowerCase() === 'right' ? 'right' : 'left'
+  // IDOL-MODE: vẽ icon idol vào từng ô (contain, cao 80%, neo đáy, side theo từng icon)
+  if (idolDraws.length > 0) {
     for (let index = 0; index < slots.length; index++) {
-      const idolImg = idolImgs[index]
+      const draw = idolDraws[index]
+      const idolImg = draw?.img
       if (!idolImg || !idolImg.naturalWidth || !idolImg.naturalHeight) continue
       const slot = slots[index]
       const sx = (slot.x / 100) * iw
@@ -917,7 +914,7 @@ function renderToCanvas(
       const s = Math.min(sw / idolImg.naturalWidth, boxH / idolImg.naturalHeight)
       const dw = idolImg.naturalWidth * s
       const dh = idolImg.naturalHeight * s
-      const dx = idolSide === 'right' ? sx + sw - dw : sx
+      const dx = draw.side === 'right' ? sx + sw - dw : sx
       ctx.drawImage(idolImg, dx, boxY + (boxH - dh), dw, dh)
     }
   }
@@ -961,19 +958,20 @@ function capturePrintImage(): Promise<string | null> {
     }))
   }
 
-  const idolImgs: (HTMLImageElement | null)[] = []
+  const idolDraws: Array<{ img: HTMLImageElement; side: 'left' | 'right' } | null> = []
   if (selectionStore.typeIdol === 1) {
     const icons = selectionStore.idolIcons
     for (let index = 0; index < slots.length; index++) {
       const capIdx = filledPhotos[index]?.capturedIndex
-      if (capIdx === undefined || capIdx >= icons.length || !icons[capIdx]) {
-        idolImgs.push(null)
+      const icon = capIdx === undefined ? undefined : icons[capIdx]
+      if (!icon || !icon.url) {
+        idolDraws.push(null)
         continue
       }
       const idol = new Image()
       idol.crossOrigin = 'anonymous'
-      idol.src = icons[capIdx]
-      idolImgs.push(idol)
+      idol.src = icon.url
+      idolDraws.push({ img: idol, side: icon.side })
       loads.push(
         new Promise((r) => {
           idol.onload = () => r()
@@ -1006,7 +1004,7 @@ function capturePrintImage(): Promise<string | null> {
           return
         }
         const filterVal = TONE_FILTERS[selectionStore.selectedTone] || 'none'
-        renderToCanvas(tempCtx, stripW, stripH, slots, frameImg, photoImgs, filterVal, idolImgs)
+        renderToCanvas(tempCtx, stripW, stripH, slots, frameImg, photoImgs, filterVal, idolDraws)
 
         if (isTwoBySix) {
           const leftMargin = 60
