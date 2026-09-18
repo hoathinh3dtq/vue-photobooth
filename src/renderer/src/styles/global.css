@@ -1,5 +1,25 @@
 /* Helpers không có trong CSS gốc v1 */
 
+/* Font bundle offline (OFL) dùng chung các màn */
+@font-face {
+  font-family: 'Dancing Script';
+  src: url('/assets/fonts/DancingScript.ttf') format('truetype');
+  font-weight: 100 1000;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Baloo 2';
+  src: url('/assets/fonts/Baloo2.ttf') format('truetype');
+  font-weight: 100 1000;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Nunito';
+  src: url('/assets/fonts/Nunito.ttf') format('truetype');
+  font-weight: 100 1000;
+  font-display: swap;
+}
+
 .hint {
   padding: 1vh 1vw;
   color: #7a3d55;

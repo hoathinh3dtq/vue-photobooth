@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import FlowerLoader from '../components/FlowerLoader.vue'
 import { useConfigStore } from '../stores/config'
 import { useFlowStore } from '../stores/flow'
 import { useSelectionStore } from '../stores/selection'
@@ -1291,15 +1292,51 @@ onMounted(async () => {
 
 <template>
   <div class="theme-builder">
+    <svg class="theme-bg-deco" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <path
+        d="M-80,-60 C160,-40 260,60 230,180 C200,300 60,320 -40,380 L-80,940 L-80,-60 Z"
+        fill="#f2b7cb"
+        opacity="0.55"
+      />
+      <path d="M-120,120 C60,140 190,230 170,360" fill="none" stroke="#ef8fae" stroke-width="5" opacity="0.7" />
+      <path
+        d="M1680,500 C1500,540 1440,660 1470,790 C1490,880 1560,930 1620,960 L1680,960 L1680,500 Z"
+        fill="#f2b7cb"
+        opacity="0.55"
+      />
+      <path d="M1560,560 C1450,600 1410,720 1440,840" fill="none" stroke="#ef8fae" stroke-width="5" opacity="0.7" />
+      <g transform="translate(70,400) scale(1.6)" fill="none" stroke="#f2719b" stroke-width="1.6">
+        <path
+          d="M12 21s-7.5-4.7-9.5-9.4C1.3 8.9 3 5.9 6 5.9c2 0 3.6 1.2 4.6 3 1-1.8 2.6-3 4.6-3 3 0 4.7 3 3.5 5.7C19.5 16.3 12 21 12 21z"
+        />
+      </g>
+      <path
+        d="M1500 300s-7.5-4.7-9.5-9.4c-1.2-2.7.3-5.7 3.3-5.7 2 0 3.6 1.2 4.6 3 1-1.8 2.6-3 4.6-3 3 0 4.7 3 3.5 5.7-1.5 4.7-10.5 9.4-10.5 9.4z"
+        fill="#f2719b"
+      />
+      <path
+        d="M180 780s-7.5-4.7-9.5-9.4c-1.2-2.7.3-5.7 3.3-5.7 2 0 3.6 1.2 4.6 3 1-1.8 2.6-3 4.6-3 3 0 4.7 3 3.5 5.7-1.5 4.7-10.5 9.4-10.5 9.4z"
+        fill="#f2719b"
+        opacity="0.8"
+      />
+    </svg>
     <section class="neon-panel theme-sidebar">
       <h2 class="neon-title"><span>✦</span> CHỌN THEME <span>✦</span></h2>
       <div v-if="!isIdolPreselected" class="theme-choice-strip">
-        <button class="theme-nav" id="theme-nav-left" type="button" @click="scrollThemeChoices(-1)">&#8249;</button>
+          <button class="theme-nav" id="theme-nav-left" type="button" @click="scrollThemeChoices(-1)">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
         <div class="theme-choice-list" id="theme-choice-list">
-          <p v-if="loading" class="hint">Đang tải...</p>
+          <FlowerLoader v-if="loading" />
           <p v-else-if="Object.keys(themes).length === 0" class="hint">Chưa có theme nào</p>
         </div>
-        <button class="theme-nav" id="theme-nav-right" type="button" @click="scrollThemeChoices(1)">&#8250;</button>
+          <button class="theme-nav" id="theme-nav-right" type="button" @click="scrollThemeChoices(1)">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
       </div>
     </section>
 
@@ -1340,9 +1377,17 @@ onMounted(async () => {
     <section class="neon-panel captured-panel">
       <h2 class="neon-title"><span>✦</span> DANH SÁCH ẢNH ĐÃ CHỤP <span>✦</span></h2>
       <div class="theme-captured-strip">
-        <button class="preview-nav" id="theme-preview-left" type="button" @click="scrollCapturedPreview(-1)">&#8249;</button>
+          <button class="preview-nav" id="theme-preview-left" type="button" @click="scrollCapturedPreview(-1)">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M15 5l-7 7 7 7" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
         <div class="captured-list" id="theme-captured-list"></div>
-        <button class="preview-nav" id="theme-preview-right" type="button" @click="scrollCapturedPreview(1)">&#8250;</button>
+          <button class="preview-nav" id="theme-preview-right" type="button" @click="scrollCapturedPreview(1)">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 5l7 7-7 7" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
       </div>
     </section>
 

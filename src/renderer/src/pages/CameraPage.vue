@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useConfigStore } from '../stores/config'
 import { useFlowStore } from '../stores/flow'
 import { useSelectionStore } from '../stores/selection'
@@ -526,6 +526,7 @@ async function retakeImage(): Promise<void> {
 function renderPreview(): void {
   // Vue render qua template; giữ scroll cuối
   void previewRef.value?.scrollTo({ left: previewRef.value.scrollWidth })
+  void nextTick(() => updateScrollNav())
 }
 
 function selectPhoto(index: number): void {
@@ -548,15 +549,29 @@ function scrollPreview(direction: number): void {
   })
 }
 
+// Nav dải preview chỉ enable khi còn ảnh để lướt tới
+const canScrollLeft = ref(false)
+const canScrollRight = ref(false)
+function updateScrollNav(): void {
+  const el = previewRef.value
+  if (!el) {
+    canScrollLeft.value = false
+    canScrollRight.value = false
+    return
+  }
+  canScrollLeft.value = el.scrollLeft > 4
+  canScrollRight.value = el.scrollLeft + el.clientWidth < el.scrollWidth - 4
+}
+
 async function showCountdown(seconds: number): Promise<void> {
   const el = countdownRef.value
   for (let i = seconds; i > 0; i--) {
-    if (el) el.innerText = String(i)
+    if (el) el.innerHTML = `<span class="count-num">${i}</span>`
     await wait(1000)
   }
-  if (el) el.innerText = '0'
+  if (el) el.innerHTML = '<span class="count-num">0</span>'
   await wait(150)
-  if (el) el.innerText = ''
+  if (el) el.innerHTML = ''
 }
 
 function goNext(): void {
@@ -579,19 +594,124 @@ function goBack(): void {
 
 onMounted(() => {
   void startCamera()
+  window.addEventListener('resize', updateScrollNav)
+  previewRef.value?.addEventListener('scroll', updateScrollNav, { passive: true })
+  void nextTick(() => updateScrollNav())
 })
 
 onBeforeUnmount(() => {
   stopCamera()
+  window.removeEventListener('resize', updateScrollNav)
+  previewRef.value?.removeEventListener('scroll', updateScrollNav)
   document.body.classList.remove('is-capturing')
 })
 </script>
 
 <template>
   <section class="camera-layout">
+    <svg class="cam-bg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <defs>
+        <filter id="camBlur" x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="38" />
+        </filter>
+      </defs>
+      <path
+        d="M1680,900 L1680,540 C1530,560 1445,670 1455,800 C1460,875 1510,900 1565,900 Z"
+        fill="#f2a9c6"
+      />
+      <path
+        d="M1680,900 L1680,540 C1530,560 1445,670 1455,800 C1460,875 1510,900 1565,900 Z"
+        fill="#f2a9c6"
+        filter="url(#camBlur)"
+        opacity="0.85"
+      />
+      <path
+        d="M1560,580 C1450,620 1410,730 1440,840"
+        fill="none"
+        stroke="#ef8fae"
+        stroke-width="5"
+      />
+      <path
+        d="M-80,900 L-80,620 C50,640 130,750 120,860 L120,900 Z"
+        fill="#f4c0d3"
+      />
+      <path
+        d="M-80,900 L-80,620 C50,640 130,750 120,860 L120,900 Z"
+        fill="#f4c0d3"
+        filter="url(#camBlur)"
+        opacity="0.85"
+      />
+      <path d="M-40,680 C70,700 120,790 118,870" fill="none" stroke="#ef8fae" stroke-width="5" />
+      <path
+        d="M-80,0 L-80,280 C50,260 130,150 120,40 L120,0 Z"
+        fill="#f4c0d3"
+      />
+      <path
+        d="M-80,0 L-80,280 C50,260 130,150 120,40 L120,0 Z"
+        fill="#f4c0d3"
+        filter="url(#camBlur)"
+        opacity="0.85"
+      />
+      <path
+        d="M1680,0 L1680,360 C1530,340 1445,230 1455,100 C1460,25 1510,0 1565,0 Z"
+        fill="#f2a9c6"
+      />
+      <path
+        d="M1680,0 L1680,360 C1530,340 1445,230 1455,100 C1460,25 1510,0 1565,0 Z"
+        fill="#f2a9c6"
+        filter="url(#camBlur)"
+        opacity="0.85"
+      />
+      <path d="M1560,320 C1450,280 1410,170 1440,60" fill="none" stroke="#ef8fae" stroke-width="5" />
+    </svg>
+    <header class="cam-head">
+      <svg class="cam-head-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          d="M4 8h3l2-2.5h6L17 8h3a1.5 1.5 0 0 1 1.5 1.5V18a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 18V9.5A1.5 1.5 0 0 1 4 8z"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linejoin="round"
+        />
+        <circle cx="12" cy="13.5" r="3.6" fill="none" stroke="currentColor" stroke-width="1.8" />
+      </svg>
+      <h1>Sẵn sàng chụp nào!</h1>
+      <p>Giữ nụ cười, lưu giữ khoảnh khắc đẹp nhất</p>
+      <div class="cam-head-div" aria-hidden="true"><span></span><i>♥</i><span></span></div>
+      <svg class="cam-spark cam-sp-l" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 3l2.2 6.8L21 12l-6.8 2.2L12 21l-2.2-6.8L3 12l6.8-2.2z" fill="#f4a9c6" />
+      </svg>
+      <svg class="cam-spark cam-sp-r" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 3l2.2 6.8L21 12l-6.8 2.2L12 21l-2.2-6.8L3 12l6.8-2.2z" fill="#f4a9c6" />
+      </svg>
+      <svg class="cam-burst cam-b1" viewBox="0 0 60 92" aria-hidden="true">
+        <path
+          d="M24 30s-11-6.8-13.5-13.5C8.9 12.3 10.8 8 15 8c2.8 0 5.1 1.8 6.4 4.3 1.3-2.5 3.6-4.3 6.4-4.3 4.2 0 6 4.3 4.4 8.5C29.7 23.2 24 30 24 30z"
+          fill="none"
+          stroke="#f2719b"
+          stroke-width="2.5"
+          stroke-linejoin="round"
+        />
+        <path d="M22 54l20 7M20 68l20 8" stroke="#f2719b" stroke-width="3.5" stroke-linecap="round" />
+      </svg>
+      <svg class="cam-burst cam-b2" viewBox="0 0 60 92" aria-hidden="true">
+        <path
+          d="M24 30s-11-6.8-13.5-13.5C8.9 12.3 10.8 8 15 8c2.8 0 5.1 1.8 6.4 4.3 1.3-2.5 3.6-4.3 6.4-4.3 4.2 0 6 4.3 4.4 8.5C29.7 23.2 24 30 24 30z"
+          fill="none"
+          stroke="#f2719b"
+          stroke-width="2.5"
+          stroke-linejoin="round"
+        />
+        <path d="M22 54l20 7M20 68l20 8" stroke="#f2719b" stroke-width="3.5" stroke-linecap="round" />
+      </svg>
+    </header>
     <div class="camera-stage">
       <div class="camera-screen">
         <video id="video" ref="videoRef" autoplay playsinline muted></video>
+        <span class="vf-corner vf-tl" aria-hidden="true"></span>
+        <span class="vf-corner vf-tr" aria-hidden="true"></span>
+        <span class="vf-corner vf-bl" aria-hidden="true"></span>
+        <span class="vf-corner vf-br" aria-hidden="true"></span>
         <img id="captured-preview" ref="capturedPreviewRef" />
         <img
           v-if="visibleIdolUrl"
@@ -606,8 +726,10 @@ onBeforeUnmount(() => {
         <p v-if="cameraError" class="camera-error-overlay">{{ cameraError }}</p>
       </div>
       <div class="preview-panel">
-        <button class="preview-nav" id="preview-left" type="button" aria-label="Xem anh truoc" @click="scrollPreview(-1)">
-          &#8249;
+        <button class="preview-nav" id="preview-left" type="button" aria-label="Xem anh truoc" :disabled="!canScrollLeft" @click="scrollPreview(-1)">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
         </button>
         <div id="preview" ref="previewRef" aria-label="Anh da chup">
           <span
@@ -631,8 +753,10 @@ onBeforeUnmount(() => {
             />
           </span>
         </div>
-        <button class="preview-nav" id="preview-right" type="button" aria-label="Xem anh tiep" @click="scrollPreview(1)">
-          &#8250;
+        <button class="preview-nav" id="preview-right" type="button" aria-label="Xem anh tiep" :disabled="!canScrollRight" @click="scrollPreview(1)">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
         </button>
       </div>
     </div>
@@ -640,21 +764,20 @@ onBeforeUnmount(() => {
     <div class="btn-action">
       <button class="btn-page-cam" id="start-short" type="button" :disabled="startDisabled" @click="startAutoCapture">
         <span class="icon">
-          <svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="#f0afaf" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-            <circle cx="12" cy="12" r="4" />
-            <circle cx="18" cy="6" r="1" />
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 8h3l2-2.5h6L17 8h3a1.5 1.5 0 0 1 1.5 1.5V18a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 18V9.5A1.5 1.5 0 0 1 4 8z" />
+            <circle cx="12" cy="13.5" r="3.6" />
           </svg>
         </span>
-        <p class="text-btn-start">Chụp nào</p>
+        <p class="text-btn-start">Chụp ảnh</p>
       </button>
 
       <button class="btn-page-cam" id="re-short" type="button" :disabled="retakeDisabled" @click="retakeImage">
         <span class="icon">
-          <svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="#f0afaf" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-            <circle cx="12" cy="12" r="4" />
-            <circle cx="18" cy="6" r="1" />
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3.5" y="5" width="17" height="14" rx="2.5" />
+            <circle cx="9" cy="10" r="1.4" fill="currentColor" stroke="none" />
+            <path d="M3.5 15.5l4.5-4 3.5 3 3-2.5 5.5 4.5" />
           </svg>
         </span>
         <p class="text-btn-start">Chụp lại</p>
@@ -662,12 +785,11 @@ onBeforeUnmount(() => {
 
       <button class="btn-page-cam" id="choose-theme" type="button" :disabled="themeDisabled" @click="goNext">
         <span class="icon">
-          <svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="#f0afaf" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="13.5" cy="6.5" r="1.5" />
-            <circle cx="17.5" cy="10.5" r="1.5" />
-            <circle cx="8.5" cy="7.5" r="1.5" />
-            <circle cx="7.5" cy="13.5" r="1.5" />
-            <path d="M12 3C7 3 3 6.8 3 11.5C3 16.2 6.8 20 11.5 20H13C14.4 20 15 18.4 14.1 17.4C13.5 16.7 14 15.6 15 15.6H16.4C19.1 15.6 21 13.7 21 11.1C21 6.6 17 3 12 3Z" />
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3.5C7.5 3.5 4 6.9 4 11.2c0 3.1 1.8 5.4 4.2 6.6.4-1.2 1.5-2 2.8-2h1.4c2.9 0 5.6-2.1 5.6-4.9 0-4-2.9-7.4-6-7.4z" />
+            <circle cx="9" cy="10" r="1.1" fill="currentColor" stroke="none" />
+            <circle cx="13.5" cy="9" r="1.1" fill="currentColor" stroke="none" />
+            <circle cx="15.5" cy="12.5" r="1.1" fill="currentColor" stroke="none" />
           </svg>
         </span>
           <p class="text-btn-start">{{ isIdolMode ? 'Ghép theme' : 'Chọn theme' }}</p>
@@ -675,13 +797,66 @@ onBeforeUnmount(() => {
 
       <button class="btn-page-cam" id="return-select-type" type="button" :disabled="returnDisabled" @click="goBack">
         <span class="icon">
-          <svg class="icon-back" viewBox="0 0 24 24">
-            <path d="M14 7L9 12L14 17" />
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 5l-5 7 5 7" />
+            <path d="M4.5 12h11" />
           </svg>
         </span>
         <p class="text-btn-start">Quay lại</p>
       </button>
     </div>
+
+    <svg class="cam-heart cam-h1" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M12 21s-7.5-4.7-9.5-9.4C1.3 8.9 3 5.9 6 5.9c2 0 3.6 1.2 4.6 3 1-1.8 2.6-3 4.6-3 3 0 4.7 3 3.5 5.7C19.5 16.3 12 21 12 21z"
+        fill="none"
+        stroke="#f2719b"
+        stroke-width="1.8"
+      />
+    </svg>
+    <svg class="cam-heart cam-h2" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M12 21s-7.5-4.7-9.5-9.4C1.3 8.9 3 5.9 6 5.9c2 0 3.6 1.2 4.6 3 1-1.8 2.6-3 4.6-3 3 0 4.7 3 3.5 5.7C19.5 16.3 12 21 12 21z"
+        fill="#f2719b"
+      />
+    </svg>
+    <svg class="cam-flower cam-f1" viewBox="0 0 60 60" aria-hidden="true">
+      <g fill="#f9b1cd">
+        <ellipse cx="30" cy="15" rx="8" ry="13" />
+        <ellipse cx="30" cy="15" rx="8" ry="13" transform="rotate(60 30 30)" />
+        <ellipse cx="30" cy="15" rx="8" ry="13" transform="rotate(120 30 30)" />
+        <ellipse cx="30" cy="15" rx="8" ry="13" transform="rotate(180 30 30)" />
+        <ellipse cx="30" cy="15" rx="8" ry="13" transform="rotate(240 30 30)" />
+        <ellipse cx="30" cy="15" rx="8" ry="13" transform="rotate(300 30 30)" />
+      </g>
+      <circle cx="30" cy="30" r="7" fill="#ef6aa0" />
+    </svg>
+    <svg class="cam-flower cam-f2" viewBox="0 0 60 60" aria-hidden="true">
+      <g fill="#f9b1cd">
+        <ellipse cx="30" cy="15" rx="8" ry="13" />
+        <ellipse cx="30" cy="15" rx="8" ry="13" transform="rotate(60 30 30)" />
+        <ellipse cx="30" cy="15" rx="8" ry="13" transform="rotate(120 30 30)" />
+        <ellipse cx="30" cy="15" rx="8" ry="13" transform="rotate(180 30 30)" />
+        <ellipse cx="30" cy="15" rx="8" ry="13" transform="rotate(240 30 30)" />
+        <ellipse cx="30" cy="15" rx="8" ry="13" transform="rotate(300 30 30)" />
+      </g>
+      <circle cx="30" cy="30" r="7" fill="#ef6aa0" />
+    </svg>
+    <svg class="cam-heart cam-h3" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M12 21s-7.5-4.7-9.5-9.4C1.3 8.9 3 5.9 6 5.9c2 0 3.6 1.2 4.6 3 1-1.8 2.6-3 4.6-3 3 0 4.7 3 3.5 5.7C19.5 16.3 12 21 12 21z"
+        fill="none"
+        stroke="#f2719b"
+        stroke-width="1.8"
+      />
+    </svg>
+    <svg class="cam-heart cam-h4" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M12 21s-7.5-4.7-9.5-9.4C1.3 8.9 3 5.9 6 5.9c2 0 3.6 1.2 4.6 3 1-1.8 2.6-3 4.6-3 3 0 4.7 3 3.5 5.7C19.5 16.3 12 21 12 21z"
+        fill="#f2719b"
+      />
+    </svg>
+    <div class="cam-sign" aria-hidden="true">for your smile ♡</div>
   </section>
 </template>
 
@@ -690,13 +865,204 @@ onBeforeUnmount(() => {
   position: absolute;
   inset: auto 0 12%;
   z-index: 30;
-  margin: 0;
-  padding: 1vh 1vw;
+  margin: 0 auto;
+  padding: 1vh 1.6vw;
+  width: max-content;
+  max-width: 80%;
   text-align: center;
-  color: #ff5f7e;
+  color: #d14e7d;
   font-size: 0.95vw;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid #f4c6d8;
+  border-radius: 999px;
+  box-shadow: 0 0.5vh 1.5vh rgba(239, 91, 141, 0.25);
+}
+.cam-bg {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+.cam-head {
+  position: absolute;
+  top: 1.2vh;
+  left: 14vw;
+  width: 63vw;
+  z-index: 5;
+  text-align: center;
+  pointer-events: none;
+}
+.cam-head-icon {
+  width: 2.6vmin;
+  color: #e14e7f;
+}
+.cam-head h1 {
+  margin: 0.3vh 0 0;
+  font-family: 'Baloo 2', 'Segoe UI', sans-serif;
+  font-size: 3.2vmin;
+  font-weight: 800;
+  color: #5b3a44;
+}
+.cam-head p {
+  margin: 0.2vh 0 0;
+  font-family: 'Nunito', 'Segoe UI', sans-serif;
+  font-size: 1.8vmin;
   font-weight: 600;
-  background: rgba(10, 0, 8, 0.72);
+  color: #9a8f94;
+}
+.cam-head-div {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1vw;
+  margin-top: 0.6vh;
+}
+.cam-head-div span {
+  width: 8vw;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, #f4a9c6);
+}
+.cam-head-div span:last-child {
+  background: linear-gradient(90deg, #f4a9c6, transparent);
+}
+.cam-head-div i {
+  font-style: normal;
+  font-size: 1.8vmin;
+  color: #f2719b;
+}
+.vf-corner {
+  position: absolute;
+  width: 3vmin;
+  height: 3vmin;
+  z-index: 6;
+  pointer-events: none;
+  border: 0 solid #fff;
+  opacity: 0.95;
+}
+.vf-tl {
+  top: 2vmin;
+  left: 2vmin;
+  border-top-width: 5px;
+  border-left-width: 5px;
+  border-top-left-radius: 12px;
+}
+.vf-tr {
+  top: 2vmin;
+  right: 2vmin;
+  border-top-width: 5px;
+  border-right-width: 5px;
+  border-top-right-radius: 12px;
+}
+.vf-bl {
+  bottom: 2vmin;
+  left: 2vmin;
+  border-bottom-width: 5px;
+  border-left-width: 5px;
+  border-bottom-left-radius: 12px;
+}
+.vf-br {
+  bottom: 2vmin;
+  right: 2vmin;
+  border-bottom-width: 5px;
+  border-right-width: 5px;
+  border-bottom-right-radius: 12px;
+}
+.cam-spark {
+  position: absolute;
+  top: 2.2vh;
+  width: 2.4vmin;
+}
+.cam-sp-l {
+  left: 31%;
+}
+.cam-sp-r {
+  right: 31%;
+  width: 1.8vmin;
+  top: 1.4vh;
+}
+.cam-burst {
+  position: absolute;
+  top: 0.2vh;
+  width: 5.2vmin;
+}
+.cam-b1 {
+  left: 15%;
+}
+.cam-b2 {
+  right: 15%;
+  transform: scaleX(-1);
+}
+.cam-heart {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+}
+.cam-flower {
+  position: absolute;
+  z-index: 1;
+  width: 4.5vmin;
+  pointer-events: none;
+}
+.cam-f1 {
+  left: 5%;
+  bottom: 9%;
+}
+.cam-f2 {
+  right: 3.5%;
+  top: 22%;
+  width: 3.6vmin;
+}
+.cam-h3 {
+  width: 2.4vmin;
+  left: 10%;
+  top: 62%;
+}
+.cam-h4 {
+  width: 2vmin;
+  left: 30%;
+  bottom: 3%;
+}
+.cam-h1 {
+  width: 2.6vmin;
+  left: 11%;
+  top: 44%;
+}
+.cam-h2 {
+  width: 2vmin;
+  right: 5%;
+  top: 38%;
+}
+.cam-sign {
+  position: absolute;
+  left: 2.6vw;
+  top: 36%;
+  z-index: 1;
+  transform: rotate(-8deg);
+  font-family: 'Segoe Script', 'Segoe Print', cursive;
+  font-size: 2.6vmin;
+  color: #ef8fae;
+}
+.preview-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.preview-nav:disabled {
+  opacity: 0.35;
+  filter: grayscale(0.6);
+  cursor: not-allowed;
+}
+.preview-nav svg {
+  width: 44%;
+  height: 44%;
+}
+.btn-page-cam .icon svg {
+  width: 4.6vh;
+  height: 4.6vh;
 }
 #idol-shot-overlay {
   position: absolute;
@@ -721,6 +1087,7 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
   flex: none;
+  box-sizing: border-box;
 }
 .preview-thumb-idol {
   position: absolute;
@@ -731,6 +1098,12 @@ onBeforeUnmount(() => {
   object-fit: contain;
   object-position: right bottom;
   pointer-events: none;
+}
+.preview-thumb .preview-img.active {
+  border: 3px solid #e14e7f;
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 18px rgba(239, 91, 141, 0.6);
 }
 #idol-shot-overlay.idol-left,
 .preview-thumb-idol.idol-left {

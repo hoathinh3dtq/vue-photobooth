@@ -1,42 +1,19 @@
 body.page-camera {
-  --camera-neon-core: #fff7fb;
-  --camera-neon-pink: rgba(255, 83, 185, 0.86);
-  --camera-neon-peach: rgba(255, 173, 119, 0.62);
-  --camera-panel-bg: rgba(54, 9, 37, 0.18);
+  --camera-panel-bg: rgba(255, 255, 255, 0.85);
   position: relative;
   background:
-    radial-gradient(ellipse at 4% 8%, rgba(244, 55, 174, 0.52) 0%, rgba(244, 55, 174, 0.3) 14%, transparent 34%),
-    radial-gradient(ellipse at 96% 10%, rgba(255, 218, 123, 0.74) 0%, rgba(255, 184, 116, 0.4) 16%, transparent 34%),
-    radial-gradient(ellipse at 8% 90%, rgba(255, 248, 246, 0.72) 0%, rgba(255, 214, 224, 0.5) 18%, transparent 43%),
-    radial-gradient(ellipse at 48% 115%, rgba(158, 152, 196, 0.5) 0%, rgba(170, 154, 190, 0.34) 24%, transparent 56%),
-    linear-gradient(105deg, #f8aee4 0%, #ebaeca 42%, #fb939f 72%, #f9c69f 100%);
+    radial-gradient(ellipse at 2% 0%, rgba(255, 205, 225, 0.95) 0%, transparent 30%),
+    radial-gradient(ellipse at 100% 100%, rgba(255, 205, 225, 0.9) 0%, transparent 32%),
+    radial-gradient(ellipse at 96% 92%, rgba(255, 205, 225, 0.85) 0%, transparent 42%),
+    linear-gradient(160deg, #fdf3f6 0%, #f9e7ee 60%, #f6dbe4 100%);
+  font-family: 'Nunito', 'Segoe UI', Arial, sans-serif;
 }
 
 body.page-camera::before,
-body.page-camera::after {
-  content: "";
-  position: fixed;
-  top: 28vh;
-  height: 34vh;
-  width: 18px;
-  border-radius: 999px;
-  pointer-events: none;
-  z-index: 0;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.78), #fff 12%, #fff 88%, rgba(255, 255, 255, 0.78)) top / 100% 10vh no-repeat,
-    linear-gradient(180deg, rgba(255, 255, 255, 0.78), #fff 12%, #fff 88%, rgba(255, 255, 255, 0.78)) bottom / 100% 10vh no-repeat;
-  filter:
-    drop-shadow(0 0 8px rgba(255, 255, 255, 0.8))
-    drop-shadow(0 0 22px rgba(255, 83, 185, 0.82))
-    drop-shadow(0 0 44px rgba(255, 173, 119, 0.42));
-}
-
-body.page-camera::before {
-  left: 17.9vw;
-}
-
-body.page-camera::after {
-  right: 18.1vw;
+body.page-camera::after,
+body.page-camera .camera-layout::before,
+body.page-camera .camera-layout::after {
+  display: none;
 }
 
 body.page-camera #app {
@@ -49,80 +26,121 @@ body.page-camera .camera-layout {
   z-index: 1;
 }
 
-body.page-camera .camera-layout::before {
-  content: "";
-  position: absolute;
-  left: 22.7vw;
-  top: 6.1vh;
-  width: 54vw;
-  height: 58.3vh;
-  border: 4px solid rgba(255, 247, 251, 0.92);
-  border-radius: 44px;
-  pointer-events: none;
-  z-index: 0;
-  box-shadow:
-    0 0 0 2px rgba(255, 124, 198, 0.32),
-    0 0 18px 4px var(--camera-neon-pink),
-    0 0 54px 16px var(--camera-neon-peach),
-    inset 0 0 16px rgba(255, 255, 255, 0.42),
-    inset 0 0 36px rgba(255, 83, 185, 0.22);
-}
-
-body.page-camera .camera-layout::after {
-  content: "";
-  position: absolute;
-  left: 15.9vw;
-  top: 71.4vh;
-  width: 68.6vw;
-  height: 18vh;
-  border: 3px solid rgba(255, 247, 251, 0.88);
-  border-radius: 28px;
-  pointer-events: none;
-  z-index: 0;
-  background: var(--camera-panel-bg);
-  box-shadow:
-    0 0 0 1px rgba(255, 124, 198, 0.34),
-    0 0 16px 3px var(--camera-neon-pink),
-    0 0 48px 14px rgba(255, 173, 119, 0.36),
-    inset 0 0 28px rgba(255, 255, 255, 0.18);
-}
-
 body.page-camera .camera-screen {
   box-sizing: border-box;
   z-index: 2;
-  border: 2px solid rgba(255, 247, 251, 0.84);
-  background: rgba(18, 4, 21, 0.62);
-  box-shadow:
-    0 0 12px rgba(255, 255, 255, 0.45),
-    0 0 30px rgba(255, 83, 185, 0.36),
-    inset 0 0 28px rgba(0, 0, 0, 0.32);
+  top: 17vh;
+  left: 21vw;
+  width: 49vw;
+  height: 50vh;
+  border: 8px solid #fff;
+  background: #33333c;
+  box-shadow: 0 1vh 3vh rgba(239, 91, 141, 0.28);
 }
 
 body.page-camera .preview-panel {
   box-sizing: border-box;
   z-index: 2;
-  border: 3px solid rgba(255, 247, 251, 0.82);
+  left: 14vw;
+  width: 63vw;
+  border: 2px dashed #f4a9c6;
   border-radius: 28px;
-  background: rgba(60, 11, 42, 0.13);
-  box-shadow:
-    0 0 0 1px rgba(255, 124, 198, 0.28),
-    0 0 15px 3px rgba(255, 83, 185, 0.58),
-    0 0 42px 10px rgba(255, 173, 119, 0.28),
-    inset 0 0 22px rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(4px);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 0.6vh 1.8vh rgba(239, 91, 141, 0.14);
 }
 
 body.page-camera .btn-action {
   box-sizing: border-box;
   z-index: 2;
-  border: 3px solid rgba(255, 247, 251, 0.84);
-  border-radius: 36px;
+  left: 78vw;
+  top: 18vh;
+  width: 13vw;
+  height: 48vh;
+  gap: 1.6vh;
+  border: 1px solid #f4c6d8;
+  border-radius: 28px;
   background: var(--camera-panel-bg);
+  box-shadow: 0 0.8vh 2.4vh rgba(239, 91, 141, 0.16);
+  padding: 1vh 0.6vw;
+}
+
+body.page-camera .btn-page-cam {
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 0.7vw;
+  width: 10vw;
+  min-height: 8vh;
+  padding: 1vh 0.8vw;
+  background: #fff;
+  border: 1px solid #f4c6d8;
+  color: #d14e7d;
+  box-shadow: 0 0.4vh 1.2vh rgba(239, 91, 141, 0.12);
+}
+
+body.page-camera .btn-page-cam .icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 4.4vh;
+  height: 4.4vh;
+  border-radius: 50%;
+  background: rgba(244, 169, 198, 0.28);
+  color: #e98aa9;
+}
+
+body.page-camera .btn-page-cam .icon svg {
+  width: 2.6vh;
+  height: 2.6vh;
+}
+
+body.page-camera .btn-page-cam p {
+  width: auto;
+  flex: 1;
+  text-align: left;
+  font-size: 0.85vw;
+  white-space: nowrap;
+  color: #b04a68;
+}
+
+body.page-camera .btn-page-cam:hover {
+  border-color: #e14e7f;
+  background: #fff5f8;
+  box-shadow: 0 0.6vh 1.6vh rgba(239, 91, 141, 0.28);
+  transform: translateY(-2px);
+}
+
+body.page-camera .btn-page-cam:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  filter: grayscale(0.5);
+  box-shadow: none;
+  transform: none;
+}
+
+body.page-camera .preview-nav {
+  background: linear-gradient(135deg, #f7a9c6, #f27ba4);
+  border: none;
+  color: #fff;
+  box-shadow: 0 0.4vh 1.2vh rgba(239, 91, 141, 0.3);
+}
+
+body.page-camera .preview-nav:hover {
+  transform: scale(1.08);
+  box-shadow: 0 0.5vh 1.6vh rgba(239, 91, 141, 0.45);
+}
+
+body.page-camera .preview-img {
+  border-color: #f4c6d8;
+  box-shadow: 0 0.3vh 1vh rgba(239, 91, 141, 0.15);
+}
+
+body.page-camera .preview-img.active {
+  border-color: #e14e7f;
   box-shadow:
-    0 0 0 1px rgba(255, 124, 198, 0.3),
-    0 0 16px 3px var(--camera-neon-pink),
-    0 0 46px 13px rgba(255, 173, 119, 0.34),
-    inset 0 0 22px rgba(255, 255, 255, 0.14);
+    0 0 0 2px rgba(255, 255, 255, 0.8),
+    0 0 18px rgba(239, 91, 141, 0.5);
 }
 
 body.page-camera.is-capturing::before,
@@ -135,4 +153,24 @@ body.page-camera.is-capturing .camera-layout::after {
 body.page-camera.is-capturing .camera-screen {
   border: 0;
   box-shadow: none;
+}
+
+body.page-camera #countdown .count-num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22vmin;
+  height: 22vmin;
+  border-radius: 50%;
+  background: rgba(20, 8, 16, 0.45);
+  border: 5px solid #fff;
+  box-shadow:
+    0 0 0 3px rgba(244, 169, 198, 0.8),
+    0 0 4vmin rgba(239, 91, 141, 0.55);
+  color: #fff;
+  font-family: 'Baloo 2', 'Segoe UI', sans-serif;
+  font-size: 11vmin;
+  font-weight: 800;
+  line-height: 1;
+  text-shadow: 0 0 18px rgba(255, 105, 180, 0.9);
 }

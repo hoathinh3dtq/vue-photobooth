@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { listThemesByCategory, type ThemeItem } from '../lib/api/themes'
 import { STORAGE_URL } from '../lib/api/client'
+import FlowerLoader from '../components/FlowerLoader.vue'
 import { useSelectionStore, normalizeIdolSide, type IdolIcon } from '../stores/selection'
 
 interface IdolThemeCard {
@@ -134,12 +135,16 @@ onMounted(() => {
 
 <template>
   <div class="idol-layout">
-    <p v-if="loading" class="hint">Đang tải theme idol...</p>
+    <FlowerLoader v-if="loading" />
     <p v-else-if="error" class="hint error">{{ error }}</p>
     <p v-else-if="cards.length === 0" class="hint">Chưa có theme idol nào</p>
 
     <div v-else class="idol-main">
-      <button type="button" class="idol-nav" aria-label="Theme trước" @click="scrollGrid(-1)">&#8249;</button>
+      <button type="button" class="idol-nav idol-nav-left" aria-label="Theme trước" @click="scrollGrid(-1)">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
       <div ref="gridRef" class="idol-grid">
       <button
         v-for="card in cards"
@@ -170,7 +175,11 @@ onMounted(() => {
         </div>
       </button>
       </div>
-      <button type="button" class="idol-nav" aria-label="Theme tiếp" @click="scrollGrid(1)">&#8250;</button>
+      <button type="button" class="idol-nav idol-nav-right" aria-label="Theme tiếp" @click="scrollGrid(1)">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
     </div>
 
     <button type="button" class="idol-back" @click="goBack">Quay lại</button>
@@ -216,11 +225,31 @@ onMounted(() => {
 }
 .idol-nav {
   flex: 0 0 auto;
-  font-size: 2.5vw;
-  line-height: 1;
   padding: 1vh 1vw;
   border-radius: 10px;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.idol-nav svg {
+  width: 1.6vw;
+  height: 1.6vw;
+  min-width: 28px;
+  min-height: 28px;
+}
+.idol-nav-left,
+.idol-nav-right {
+  animation: idol-float 2s ease-in-out infinite;
+}
+@keyframes idol-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-0.8vh);
+  }
 }
 .idol-card {
   flex: 0 0 auto;
