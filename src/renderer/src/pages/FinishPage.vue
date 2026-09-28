@@ -95,7 +95,10 @@ async function printCopies(count: number): Promise<boolean> {
     document.getElementById('modal-ok-btn')!.onclick = hideModal
     return false
   }
-  const opts = sessionStore.lastPrintOptions
+  // Clone sang plain object để tránh lỗi "An object could not be cloned"
+  // do Pinia state là Vue reactive Proxy, không structured-clone được qua Electron IPC
+  const opts = { ...sessionStore.lastPrintOptions }
+  const imageDataUrl = `${sessionStore.lastPrintedImage}`
   if (!opts.printName) {
     showModal(
       `<p>❌ Không tìm thấy máy in. Kiểm tra tên máy in trong cài đặt. (PRINTER_NOT_FOUND)</p><button class="modal-ok-btn" id="modal-ok-btn">OK</button>`,
@@ -108,7 +111,7 @@ async function printCopies(count: number): Promise<boolean> {
     try {
       // Timeout 40s để không treo modal "Đang in..." khi driver bận
       const res = await Promise.race([
-        window.electronAPI.printImage(sessionStore.lastPrintedImage, opts),
+        window.electronAPI.printImage(imageDataUrl, { ...opts }),
         new Promise<null>((resolve) => setTimeout(() => resolve(null), 40000)),
       ])
       hideModal()
