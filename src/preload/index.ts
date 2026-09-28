@@ -31,6 +31,8 @@ export interface CameraStatusResult {
 
 const api = {
   getVersion: (): Promise<string> => ipcRenderer.invoke('app:get-version'),
+  log: (level: string, msg: string): Promise<null> =>
+    ipcRenderer.invoke('app:log', level, msg),
   camera: {
     capture: (): Promise<CameraCaptureResult> => ipcRenderer.invoke('camera:capture'),
     status: (): Promise<CameraStatusResult> => ipcRenderer.invoke('camera:status'),

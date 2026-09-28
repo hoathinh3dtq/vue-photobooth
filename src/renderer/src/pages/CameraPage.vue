@@ -90,35 +90,38 @@ function mirrorValue(): number {
 
 function applyMirrorTo(el: HTMLElement, withCrop = true): void {
   const val = mirrorValue()
-  const s = withCrop ? cropScaleX : 1
-  if (val === 1) el.style.transform = `scale(${-s}, 1)`
-  else if (val === 2) el.style.transform = `scale(1, -1)`
-  else if (val === 3) el.style.transform = `scale(${-s}, -1)`
-  else el.style.transform = `scale(${s}, 1)`
+  const sx = withCrop ? cropScaleX : 1
+  const sy = withCrop ? cropScaleY : 1
+  if (val === 1) el.style.transform = `scale(${-sx}, ${sy})`
+  else if (val === 2) el.style.transform = `scale(${sx}, ${-sy})`
+  else if (val === 3) el.style.transform = `scale(${-sx}, ${-sy})`
+  else el.style.transform = `scale(${sx}, ${sy})`
 }
 
 // IDOL-MODE: overlay idol KHÔNG lật theo gương.
 // Gương chỉ áp cho hình camera; idol là graphic thiết kế sẵn (mặt/chữ),
 // lật theo sẽ bị ngược. Vị trí trái/phải giữ nguyên theo theme để khớp ảnh in.
 
-// Tự đo viền đen (pillarbox) của nguồn HDMI/camera và crop bằng transform.
-// USE_AUTO_CROP = false -> quay về hardcode 119% / -93px.
+// Tự đo viền đen 4 góc (trái/phải + trên/dưới) của nguồn HDMI/camera và crop bằng transform.
+// USE_AUTO_CROP = false -> không crop.
 let cropScaleX = 1
+let cropScaleY = 1
 const USE_AUTO_CROP = true
 
-function measurePillarbox(video: HTMLVideoElement): number {
+function measurePillarbox(video: HTMLVideoElement): { xFrac: number; yFrac: number } {
+  const none = { xFrac: 0, yFrac: 0 }
   const w = video.videoWidth
   const h = video.videoHeight
-  if (!w || !h) return 0
+  if (!w || !h) return none
   const c = document.createElement('canvas')
   c.width = w
   c.height = h
   const ctx = c.getContext('2d')
-  if (!ctx) return 0
+  if (!ctx) return none
   try {
     ctx.drawImage(video, 0, 0, w, h)
   } catch {
-    return 0
+    return none
   }
   const d = ctx.getImageData(0, 0, w, h).data
   const colBright = (x: number): number => {
@@ -132,12 +135,23 @@ function measurePillarbox(video: HTMLVideoElement): number {
     }
     return sum / n
   }
+  const rowBright = (y: number): number => {
+    let sum = 0
+    let n = 0
+    const step = Math.max(1, Math.floor(w / 40))
+    for (let x = 0; x < w; x += step) {
+      const i = (y * w + x) * 4
+      sum += d[i] + d[i + 1] + d[i + 2]
+      n += 3
+    }
+    return sum / n
+  }
   let center = 0
   const cx0 = Math.floor(w / 3)
   const cx1 = Math.floor((2 * w) / 3)
   for (let x = cx0; x < cx1; x++) center += colBright(x)
   center /= cx1 - cx0 || 1
-  if (center < 8) return 0
+  if (center < 8) return none
   const thr = center * 0.5
   let left = 0
   for (let x = 0; x < w; x++) {
@@ -153,17 +167,35 @@ function measurePillarbox(video: HTMLVideoElement): number {
       break
     }
   }
-  if (right <= left) return 0
-  const contentFrac = (right - left + 1) / w
-  if (contentFrac <= 0.55 || contentFrac >= 0.98) return 0
-  return contentFrac
+  let top = 0
+  for (let y = 0; y < h; y++) {
+    if (rowBright(y) > thr) {
+      top = y
+      break
+    }
+  }
+  let bottom = h - 1
+  for (let y = h - 1; y >= 0; y--) {
+    if (rowBright(y) > thr) {
+      bottom = y
+      break
+    }
+  }
+  if (right <= left || bottom <= top) return none
+  let xFrac = (right - left + 1) / w
+  let yFrac = (bottom - top + 1) / h
+  if (xFrac <= 0.55 || xFrac >= 0.98) xFrac = 0
+  if (yFrac <= 0.55 || yFrac >= 0.98) yFrac = 0
+  return { xFrac, yFrac }
 }
 
 function applyVideoCrop(video: HTMLVideoElement): void {
   if (!USE_AUTO_CROP) {
-    video.style.width = '119%'
-    video.style.marginLeft = '-93px'
-    video.style.transformOrigin = ''
+    video.style.width = '100%'
+    video.style.marginLeft = ''
+    video.style.transformOrigin = 'center center'
+    cropScaleX = 1
+    cropScaleY = 1
     applyMirrorTo(video, true)
     return
   }
@@ -172,14 +204,16 @@ function applyVideoCrop(video: HTMLVideoElement): void {
   video.style.transformOrigin = 'center center'
   let attempts = 0
   const tryMeasure = () => {
-    const contentFrac = measurePillarbox(video)
-    if (contentFrac > 0) {
-      cropScaleX = 1 / contentFrac
+    const { xFrac, yFrac } = measurePillarbox(video)
+    if (xFrac > 0 || yFrac > 0) {
+      cropScaleX = xFrac > 0 ? 1 / xFrac : 1
+      cropScaleY = yFrac > 0 ? 1 / yFrac : 1
       applyMirrorTo(video, true)
     } else if (attempts++ < 6) {
       setTimeout(tryMeasure, 400)
     } else {
       cropScaleX = 1
+      cropScaleY = 1
       applyMirrorTo(video, true)
     }
   }
@@ -212,6 +246,7 @@ async function startCamera(): Promise<void> {
     stream = tlStream
     video.srcObject = stream
     await video.play()
+    console.log('[camera] tl stream size:', video.videoWidth, 'x', video.videoHeight)
     applyVideoCrop(video)
     webcamReady.value = video.videoWidth > 0
     cameraError.value = ''
@@ -220,7 +255,13 @@ async function startCamera(): Promise<void> {
 
   try {
     console.log('[camera] requesting getUserMedia...')
-    const gumPromise = navigator.mediaDevices.getUserMedia({ video: true })
+    const gumPromise = navigator.mediaDevices.getUserMedia({
+      video: {
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+        aspectRatio: { ideal: 16 / 9 },
+      },
+    })
     let timedOut = false
     const timeout = new Promise<never>((_, reject) => {
       setTimeout(() => {
@@ -295,6 +336,7 @@ function trimBlackBorders(src: HTMLCanvasElement, minFrac = 0.02, black = 24): H
   const w = src.width
   const h = src.height
   const d = ctx.getImageData(0, 0, w, h).data
+  // Cắt viền đen cả 4 góc: trái/phải + trên/dưới
   const colBlack = new Array<boolean>(w).fill(true)
   const rowBlack = new Array<boolean>(h).fill(true)
   for (let y = 0; y < h; y++) {
@@ -324,6 +366,7 @@ function trimBlackBorders(src: HTMLCanvasElement, minFrac = 0.02, black = 24): H
   if (h - 1 - bottom < minH) bottom = h - 1
   const cw = right - left + 1
   const ch = bottom - top + 1
+  if (cw >= w && ch >= h) return src
   const out = document.createElement('canvas')
   out.width = cw
   out.height = ch
@@ -368,6 +411,62 @@ function flipImage(image: string): Promise<string> {
   })
 }
 
+function loadImg(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = reject
+    img.src = src
+  })
+}
+
+// Cắt ảnh DSLR cho giống preview: trim viền đen 4 góc rồi center-crop theo đúng
+// aspect của khung .camera-screen đang hiển thị (WYSIWYG)
+async function cropDslrToMatchPreview(image: string): Promise<string> {
+  try {
+    const img = await loadImg(image)
+    const tmp = document.createElement('canvas')
+    tmp.width = img.naturalWidth
+    tmp.height = img.naturalHeight
+    tmp.getContext('2d')?.drawImage(img, 0, 0)
+    const trimmed = trimBlackBorders(tmp)
+    const screenEl = document.querySelector('.camera-screen') as HTMLElement | null
+    let targetAspect = 1043 / 596
+    if (screenEl && screenEl.clientWidth > 0 && screenEl.clientHeight > 0) {
+      targetAspect = screenEl.clientWidth / screenEl.clientHeight
+    }
+    const tw = trimmed.width
+    const th = trimmed.height
+    if (!tw || !th) return image
+    const curAspect = tw / th
+    let cw = tw
+    let ch = th
+    let sx = 0
+    let sy = 0
+    if (Math.abs(curAspect - targetAspect) / targetAspect < 0.01) {
+      return trimmed.toDataURL('image/png')
+    }
+    if (curAspect > targetAspect) {
+      ch = th
+      cw = Math.round(th * targetAspect)
+      sx = Math.round((tw - cw) / 2)
+    } else {
+      cw = tw
+      ch = Math.round(tw / targetAspect)
+      sy = Math.round((th - ch) / 2)
+    }
+    if (cw <= 0 || ch <= 0) return trimmed.toDataURL('image/png')
+    console.log('[camera] dslr crop:', `${tw}x${th}`, '->', `${cw}x${ch}`, 'aspect:', targetAspect.toFixed(3))
+    const out = document.createElement('canvas')
+    out.width = cw
+    out.height = ch
+    out.getContext('2d')?.drawImage(trimmed, sx, sy, cw, ch, 0, 0, cw, ch)
+    return out.toDataURL('image/png')
+  } catch {
+    return image
+  }
+}
+
 async function captureImage(replaceIndex = -1): Promise<boolean> {
   const video = videoRef.value
   const capturedPreview = capturedPreviewRef.value
@@ -398,6 +497,8 @@ async function captureImage(replaceIndex = -1): Promise<boolean> {
     if (timedOut) console.warn('[camera] DSLR capture timeout, fallback webcam')
     if (res && res.ok && res.imageDataUrl) {
       image = res.imageDataUrl
+      // Crop ảnh DSLR cho giống khung preview đang thấy (WYSIWYG)
+      image = await cropDslrToMatchPreview(image)
     }
   } catch (e) {
     console.warn('[camera] DSLR capture error:', e)

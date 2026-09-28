@@ -52,7 +52,13 @@ export async function startTimeLapse(): Promise<void> {
     TL.video = video
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          aspectRatio: { ideal: 16 / 9 },
+        },
+      })
       if (stopRequested) {
         stream.getTracks().forEach((t) => t.stop())
         video.remove()

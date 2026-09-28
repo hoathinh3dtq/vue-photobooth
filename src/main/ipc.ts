@@ -9,6 +9,15 @@ const execFileAsync = promisify(execFile)
 
 ipcMain.handle('app:get-version', () => app.getVersion())
 
+// Forward renderer console ra terminal (kiosk full màn hình không mở được devtools)
+ipcMain.handle('app:log', (_event, level: string, msg: string) => {
+  const text = `[renderer] ${msg}`
+  if (level === 'error') console.error(text)
+  else if (level === 'warn') console.warn(text)
+  else console.log(text)
+  return null
+})
+
 // --- Camera (digiCamControl: HTTP/CLI, fallback webcam ở renderer) ---
 export function initCameraService(): Promise<unknown> {
   return detectCamera()
