@@ -1,4 +1,5 @@
 import { request } from './client'
+import { normalizeBoothType } from './config'
 
 export interface Booth {
   booth_code?: string
@@ -34,6 +35,6 @@ export function saveSession(res: LoginResponse): void {
 
   const booth = res.booth
   if (booth?.booth_code) localStorage.setItem('booth_code', booth.booth_code)
-  if (booth?.type) localStorage.setItem('booth_type', booth.type)
+  if (booth?.type) localStorage.setItem('booth_type', normalizeBoothType(booth.type))
   if (booth?.events?.length) localStorage.setItem('event_id', String(booth.events[0].id))
 }

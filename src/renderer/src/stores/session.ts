@@ -11,6 +11,7 @@ export const useSessionStore = defineStore('session', {
     sessionQR: '',
     timeLapsePath: '',
     timeLapseBlob: null as Blob | null,
+    timeLapseTask: null as Promise<Blob | null> | null,
     lastPrintedImage: '',
     lastPrintOptions: {} as { type?: string; printName?: string },
   }),
@@ -20,6 +21,7 @@ export const useSessionStore = defineStore('session', {
       this.sessionQR = ''
       this.timeLapsePath = ''
       this.timeLapseBlob = null
+      this.timeLapseTask = null
       this.lastPrintedImage = ''
       this.lastPrintOptions = {}
     },

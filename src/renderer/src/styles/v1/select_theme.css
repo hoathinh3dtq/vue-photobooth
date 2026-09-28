@@ -1163,3 +1163,53 @@
   z-index: 0;
   pointer-events: none;
 }
+
+/* Modal dùng chung khi hiện ở màn finish: sáng đồng bộ */
+.page-finish .payment-modal-overlay {
+  background: rgba(214, 130, 160, 0.35);
+}
+
+.page-finish .payment-modal-box {
+  background: #fff;
+  border: 1px solid #f4c6d8;
+  border-radius: 1.8vw;
+  padding: 3vh 3vw;
+  box-shadow: 0 1vh 3vh rgba(239, 91, 141, 0.22);
+  font-family: 'Nunito', 'Segoe UI', sans-serif;
+}
+
+.page-finish .payment-modal-close {
+  color: #d14e7d;
+}
+
+.page-finish .payment-modal-body {
+  color: #6b5a61;
+  font-size: 1.2vw;
+}
+
+.page-finish .modal-ok-btn {
+  background: linear-gradient(135deg, #ef5b8d, #f2709c);
+  border: none;
+  color: #fff;
+  box-shadow: 0 0.5vh 1.5vh rgba(239, 91, 141, 0.35);
+}
+
+.page-finish .modal-ok-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0.8vh 2vh rgba(239, 91, 141, 0.45);
+}
+
+.page-finish .print-preview-print {
+  background: linear-gradient(135deg, #ef5b8d, #f2709c);
+  border: none;
+  border-radius: 999px;
+  color: #fff;
+  font-family: 'Baloo 2', 'Segoe UI', sans-serif;
+  box-shadow: 0 0.5vh 1.5vh rgba(239, 91, 141, 0.35);
+}
+
+.page-finish .qty-btn {
+  background: #fff;
+  border: 1px solid #f4a9c6;
+  color: #e14e7f;
+}

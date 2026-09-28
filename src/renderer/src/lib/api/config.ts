@@ -1,5 +1,14 @@
 import { request } from './client'
 
+export type BoothTypeName = 'event' | 'normal'
+
+// Chuẩn hóa loại booth từ BE (chấp nhận 1/'1'/'event', không phân biệt hoa thường)
+export function normalizeBoothType(value: unknown): BoothTypeName {
+  if (value === 1 || value === true) return 'event'
+  const s = String(value ?? '').trim().toLowerCase()
+  return s === 'event' || s === '1' || s === 'true' ? 'event' : 'normal'
+}
+
 export interface AppConfig {
   total_take_photo?: number
   time_to_take?: number

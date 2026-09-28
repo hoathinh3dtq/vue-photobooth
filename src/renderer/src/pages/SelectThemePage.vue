@@ -1158,8 +1158,21 @@ async function doPrint(existingDataUrl?: string): Promise<void> {
     const categoryId = selectionStore.categoryId
     const photos = selectionStore.capturedPhotos
 
-    const videoBlob = sessionStore.timeLapseBlob
+    let videoBlob = sessionStore.timeLapseBlob
     sessionStore.timeLapseBlob = null
+    // Compile timelapse chạy nền sau goNext; đợi nó xong (tối đa 30s) thay vì bỏ qua
+    const pendingTask = sessionStore.timeLapseTask
+    sessionStore.timeLapseTask = null
+    if (!videoBlob && pendingTask) {
+      try {
+        videoBlob = await Promise.race([
+          pendingTask,
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 30000)),
+        ])
+      } catch {
+        videoBlob = null
+      }
+    }
 
     const qrCode = await flowStore.flow.selectTheme.printSession(sessionId)
     if (!qrCode) throw new Error('Không lấy được mã QR')
@@ -1184,26 +1197,31 @@ async function doPrint(existingDataUrl?: string): Promise<void> {
     const rotated = await rotateDataUrl(dataUrlWithQR)
     const copies = flowStore.flow.selectTheme.copies()
     const printType = isTwoBySix ? '2x6' : (selectionStore.type || '4x6')
-    if (!selectionStore.printName) {
+    // TEST-ONLY (dev): localStorage.skipPrint === '1' → bỏ qua in giấy, vẫn đi tiếp finish.
+    // import.meta.env.DEV khiến bypass này chết hẳn ở bản .exe production.
+    const skipPrint = import.meta.env.DEV && localStorage.getItem('skipPrint') === '1'
+    if (!selectionStore.printName && !skipPrint) {
       loaderOverlay.remove()
       showPrintError('PRINTER_NOT_FOUND')
       return
     }
     let lastError: { ok: boolean; error?: string; detail?: string } | null = null
-    for (let c = 0; c < copies; c++) {
-      const success = await Promise.race([
-        window.electronAPI.printImage(rotated, { type: printType, printName: selectionStore.printName }),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 40000)),
-      ])
-      if (!success) {
-        lastError = { ok: false, error: 'PRINT_TIMEOUT' }
-        break
+    if (!skipPrint) {
+      for (let c = 0; c < copies; c++) {
+        const success = await Promise.race([
+          window.electronAPI.printImage(rotated, { type: printType, printName: selectionStore.printName }),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 40000)),
+        ])
+        if (!success) {
+          lastError = { ok: false, error: 'PRINT_TIMEOUT' }
+          break
+        }
+        if (!success.ok) {
+          lastError = success
+          break
+        }
+        if (copies > 1) await new Promise((r) => setTimeout(r, 2000))
       }
-      if (!success.ok) {
-        lastError = success
-        break
-      }
-      if (copies > 1) await new Promise((r) => setTimeout(r, 2000))
     }
     loaderOverlay.remove()
     if (lastError) {

@@ -134,10 +134,12 @@ export async function stopTimeLapse(): Promise<Blob | null> {
   }
 
   if (TL.frames.length < 2) {
+    console.info('[timelapse] not enough frames:', TL.frames.length)
     TL.frames = []
     return null
   }
 
+  console.info('[timelapse] compiling frames:', TL.frames.length)
   const blob = await compileVideo(TL.frames)
   TL.frames = []
   return blob

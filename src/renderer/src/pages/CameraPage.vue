@@ -576,7 +576,8 @@ async function showCountdown(seconds: number): Promise<void> {
 
 function goNext(): void {
   stopCamera()
-  void stopTimeLapse().then((blob) => {
+  sessionStore.timeLapseTask = stopTimeLapse()
+  void sessionStore.timeLapseTask.then((blob) => {
     sessionStore.timeLapseBlob = blob
   })
   selectionStore.capturedPhotos = photos.value.map((p) => ({

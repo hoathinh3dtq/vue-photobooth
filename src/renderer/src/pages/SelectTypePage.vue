@@ -62,8 +62,14 @@ function step(direction: number): void {
   selectedId.value = categories.value[next].id
 }
 
-function pick(cat: Category): void {
+function select(cat: Category): void {
   selectedId.value = cat.id
+  selectionStore.select(cat)
+}
+
+function proceed(): void {
+  const cat = activeCat.value
+  if (!cat) return
   selectionStore.select(cat)
   router.push(selectionStore.typeIdol === 1 ? '/idol-theme' : '/camera')
 }
@@ -129,7 +135,7 @@ onMounted(async () => {
             type="button"
             class="st-type"
             :class="{ 'is-selected': selectedId === cat.id }"
-            @click="pick(cat)"
+            @click="select(cat)"
           >
             <span class="st-type-icon" v-html="typeIcon(cat)"></span>
             <span class="st-type-text">
@@ -145,7 +151,7 @@ onMounted(async () => {
           </svg>
         </button>
 
-        <div class="st-preview" @click="activeCat && pick(activeCat)">
+        <div class="st-preview">
           <img v-if="activeThumb" :src="activeThumb" :alt="activeCat?.type_name || ''" />
         </div>
 
@@ -156,7 +162,7 @@ onMounted(async () => {
         </button>
       </div>
 
-      <div v-if="activeCat" class="st-pill">{{ activeCat.type_name }}</div>
+      <button v-if="activeCat" type="button" class="st-pill" @click="proceed()">{{ activeCat.type_name }}</button>
 
       <div class="st-sign" aria-hidden="true">for your smile ♡</div>
     </template>
@@ -350,6 +356,7 @@ onMounted(async () => {
   z-index: 2;
   margin-top: 2vh;
   padding: 1vh 3.4vw;
+  border: none;
   border-radius: 999px;
   background: linear-gradient(135deg, #ef5b8d, #f2709c);
   color: #fff;
@@ -357,6 +364,10 @@ onMounted(async () => {
   font-size: 2.6vmin;
   font-weight: 800;
   box-shadow: 0 0.6vh 1.8vh rgba(239, 91, 141, 0.4);
+  cursor: pointer;
+}
+.st-pill:active {
+  transform: scale(0.97);
 }
 .st-sign {
   position: absolute;

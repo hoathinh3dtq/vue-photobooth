@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { login, saveSession } from '../lib/api/auth'
+import { useFlowStore } from '../stores/flow'
 
 const router = useRouter()
 
@@ -19,6 +20,11 @@ async function onSubmit(): Promise<void> {
   try {
     const res = await login(email.value, password.value, boothCode.value)
     saveSession(res)
+    try {
+      useFlowStore().reload()
+    } catch {
+      /* flow store chưa khởi tạo: bỏ qua */
+    }
     router.push('/home')
   } catch (e) {
     try {

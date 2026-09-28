@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { listThemesByCategory, type ThemeItem } from '../lib/api/themes'
 import { STORAGE_URL } from '../lib/api/client'
@@ -22,6 +22,27 @@ const error = ref('')
 const brokenFrames = ref<Array<number | string>>([])
 const brokenIcons = ref<string[]>([])
 const gridRef = ref<HTMLDivElement | null>(null)
+const canScrollLeft = ref(false)
+const canScrollRight = ref(false)
+let gridScrollBound = false
+
+function updateScrollGrid(): void {
+  const el = gridRef.value
+  if (!el) {
+    canScrollLeft.value = false
+    canScrollRight.value = false
+    return
+  }
+  canScrollLeft.value = el.scrollLeft > 4
+  canScrollRight.value = el.scrollLeft + el.clientWidth < el.scrollWidth - 4
+}
+
+function attachGridScroll(): void {
+  const el = gridRef.value
+  if (!el || gridScrollBound) return
+  el.addEventListener('scroll', updateScrollGrid, { passive: true })
+  gridScrollBound = true
+}
 
 function scrollGrid(direction: number): void {
   const el = gridRef.value
@@ -129,18 +150,64 @@ onMounted(() => {
     router.replace('/select-type')
     return
   }
-  void load()
+  window.addEventListener('resize', updateScrollGrid)
+  void load().finally(() => {
+    void nextTick(() => {
+      attachGridScroll()
+      updateScrollGrid()
+    })
+  })
+})
+
+watch(cards, async () => {
+  await nextTick()
+  attachGridScroll()
+  updateScrollGrid()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateScrollGrid)
 })
 </script>
 
 <template>
   <div class="idol-layout">
+    <svg class="idol-bg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <path
+        d="M-80,-60 C160,-40 260,60 230,180 C200,300 60,320 -40,380 L-80,940 L-80,-60 Z"
+        fill="#f0b9cd"
+      />
+      <path d="M-120,120 C60,140 190,230 170,360" fill="none" stroke="#ef8fae" stroke-width="5" />
+      <path
+        d="M1680,500 C1500,540 1440,660 1470,790 C1490,880 1560,930 1620,960 L1680,960 L1680,500 Z"
+        fill="#f0b9cd"
+      />
+      <path d="M1560,560 C1450,600 1410,720 1440,840" fill="none" stroke="#ef8fae" stroke-width="5" />
+    </svg>
+    <svg class="idol-heart idol-h1" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M12 21s-7.5-4.7-9.5-9.4C1.3 8.9 3 5.9 6 5.9c2 0 3.6 1.2 4.6 3 1-1.8 2.6-3 4.6-3 3 0 4.7 3 3.5 5.7C19.5 16.3 12 21 12 21z"
+        fill="none"
+        stroke="#f2719b"
+        stroke-width="1.8"
+      />
+    </svg>
+    <svg class="idol-heart idol-h2" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M12 21s-7.5-4.7-9.5-9.4C1.3 8.9 3 5.9 6 5.9c2 0 3.6 1.2 4.6 3 1-1.8 2.6-3 4.6-3 3 0 4.7 3 3.5 5.7C19.5 16.3 12 21 12 21z"
+        fill="#f2719b"
+      />
+    </svg>
+    <header class="idol-head">
+      <h1>Chọn idol</h1>
+      <p>Chạm vào theme để chụp cùng idol</p>
+    </header>
     <FlowerLoader v-if="loading" />
     <p v-else-if="error" class="hint error">{{ error }}</p>
     <p v-else-if="cards.length === 0" class="hint">Chưa có theme idol nào</p>
 
     <div v-else class="idol-main">
-      <button type="button" class="idol-nav idol-nav-left" aria-label="Theme trước" @click="scrollGrid(-1)">
+      <button v-show="canScrollLeft || canScrollRight" type="button" class="idol-nav idol-nav-left" aria-label="Theme trước" @click="scrollGrid(-1)">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
@@ -175,7 +242,7 @@ onMounted(() => {
         </div>
       </button>
       </div>
-      <button type="button" class="idol-nav idol-nav-right" aria-label="Theme tiếp" @click="scrollGrid(1)">
+      <button v-show="canScrollLeft || canScrollRight" type="button" class="idol-nav idol-nav-right" aria-label="Theme tiếp" @click="scrollGrid(1)">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
@@ -183,26 +250,73 @@ onMounted(() => {
     </div>
 
     <button type="button" class="idol-back" @click="goBack">Quay lại</button>
+    <div class="idol-sign" aria-hidden="true">for your smile ♡</div>
   </div>
 </template>
 
 <style scoped>
 .idol-layout {
-  height: 100vh;
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
   box-sizing: border-box;
-  padding: 50px 3vw;
+  padding: 3vh 3vw;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2vh;
-  overflow: hidden;
+  gap: 1.6vh;
+  background: #f2d3de;
+  font-family: 'Nunito', 'Segoe UI', Arial, sans-serif;
+}
+.idol-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.idol-heart {
+  position: absolute;
+  z-index: 1;
+}
+.idol-h1 {
+  width: 3vmin;
+  left: 7%;
+  top: 24%;
+}
+.idol-h2 {
+  width: 2.4vmin;
+  right: 6%;
+  top: 20%;
+}
+.idol-head {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+}
+.idol-head h1 {
+  margin: 0;
+  font-family: 'Baloo 2', 'Segoe UI', sans-serif;
+  font-size: 5vmin;
+  font-weight: 800;
+  color: #5b3a44;
+}
+.idol-head p {
+  margin: 0.5vh 0 0;
+  font-size: 2.1vmin;
+  font-weight: 600;
+  color: #9a8f94;
 }
 .hint {
-  font-size: 1.4vw;
-  opacity: 0.8;
+  position: relative;
+  z-index: 2;
+  margin: auto;
+  font-size: 2.2vmin;
+  font-weight: 600;
+  color: #9a8f94;
+  text-align: center;
 }
 .hint.error {
-  color: #ff5f7e;
+  color: #d14e7d;
 }
 .idol-main {
   flex: 1;
@@ -210,33 +324,46 @@ onMounted(() => {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 1vw;
+  gap: 1.4vw;
+  position: relative;
+  z-index: 2;
 }
 .idol-grid {
   flex: 1;
   min-width: 0;
   height: 100%;
   display: flex;
-  gap: 1.5vw;
+  gap: 1.6vw;
   align-items: center;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 4px;
+  padding: 6px;
+  scrollbar-width: none;
+  position: relative;
+  z-index: 2;
+}
+.idol-grid::-webkit-scrollbar {
+  display: none;
 }
 .idol-nav {
   flex: 0 0 auto;
-  padding: 1vh 1vw;
-  border-radius: 10px;
+  width: 3.4vw;
+  height: 3.4vw;
+  min-width: 48px;
+  min-height: 48px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(135deg, #f7a9c6, #f27ba4);
+  color: #fff;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 0.5vh 1.6vh rgba(239, 91, 141, 0.35);
 }
 .idol-nav svg {
-  width: 1.6vw;
-  height: 1.6vw;
-  min-width: 28px;
-  min-height: 28px;
+  width: 42%;
+  height: 42%;
 }
 .idol-nav-left,
 .idol-nav-right {
@@ -258,19 +385,25 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   border: 2px solid transparent;
-  border-radius: 12px;
+  border-radius: 18px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.06);
+  background: #fff;
   cursor: pointer;
-  padding: 8px;
+  padding: 10px;
+  box-shadow: 0 0.6vh 1.8vh rgba(239, 91, 141, 0.16);
+  font-family: inherit;
 }
 .idol-card:hover {
-  border-color: #f0afaf;
+  border-color: #f06292;
+  transform: translateY(-0.4vh);
+  box-shadow: 0 1vh 2.4vh rgba(239, 91, 141, 0.3);
 }
 .idol-title {
-  margin: 0 0 6px;
-  font-size: 1vw;
-  font-weight: 700;
+  margin: 0 0 8px;
+  font-family: 'Baloo 2', 'Segoe UI', sans-serif;
+  font-size: 2.2vmin;
+  font-weight: 800;
+  color: #5b3a44;
   text-align: center;
 }
 .idol-body {
@@ -278,16 +411,18 @@ onMounted(() => {
   min-height: 0;
   min-width: 0;
   display: flex;
-  gap: 8px;
+  gap: 10px;
 }
 .idol-frame-wrap {
   flex: 0 0 auto;
+  flex-shrink: 0;
   min-width: 0;
-  width: 25vh;
+  width: 26vh;
+  max-width: 100%;
   height: 100%;
-  border-radius: 8px;
+  border-radius: 12px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.08);
+  background: #fdf0f4;
 }
 .idol-frame {
   display: block;
@@ -303,13 +438,17 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 2vw;
+  font-family: 'Baloo 2', 'Segoe UI', sans-serif;
+  font-size: 3vmin;
   font-weight: 800;
+  color: #e14e7f;
 }
 .idol-icons {
   flex: 0 0 auto;
-  width: 16vh;
+  flex-shrink: 0;
+  width: 12vh;
   min-width: 0;
+  max-width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -320,19 +459,39 @@ onMounted(() => {
   min-height: 0;
   min-width: 0;
   width: 100%;
-  border-radius: 8px;
+  border-radius: 10px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.08);
+  background: #fdf0f4;
+  border: 1px solid #f7dce6;
 }
 .idol-icon-box img {
   width: 100%;
   height: 100%;
+  max-width: 100%;
   object-fit: contain;
 }
 .idol-back {
-  font-size: 1.1vw;
-  padding: 1vh 2vw;
-  border-radius: 10px;
+  position: relative;
+  z-index: 2;
+  font-family: 'Nunito', 'Segoe UI', sans-serif;
+  font-size: 2vmin;
+  font-weight: 800;
+  color: #d14e7d;
+  background: #fff;
+  border: 1px solid #f4a9c6;
+  padding: 1.1vh 3vw;
+  border-radius: 999px;
   cursor: pointer;
+  box-shadow: 0 0.4vh 1.2vh rgba(239, 91, 141, 0.15);
+}
+.idol-sign {
+  position: absolute;
+  right: 3vw;
+  bottom: 2.6vh;
+  z-index: 2;
+  transform: rotate(-6deg);
+  font-family: 'Segoe Script', 'Segoe Print', cursive;
+  font-size: 2.4vmin;
+  color: #ef8fae;
 }
 </style>
