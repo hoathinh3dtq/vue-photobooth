@@ -107,6 +107,19 @@ function applyMirrorTo(el: HTMLElement, withCrop = true): void {
 let cropScaleX = 1
 let cropScaleY = 1
 const USE_AUTO_CROP = true
+let cropRetryTimer: ReturnType<typeof setTimeout> | null = null
+let cropMonitorTimer: ReturnType<typeof setInterval> | null = null
+
+function clearCropTimers(): void {
+  if (cropRetryTimer) {
+    clearTimeout(cropRetryTimer)
+    cropRetryTimer = null
+  }
+  if (cropMonitorTimer) {
+    clearInterval(cropMonitorTimer)
+    cropMonitorTimer = null
+  }
+}
 
 function measurePillarbox(video: HTMLVideoElement): { xFrac: number; yFrac: number } {
   const none = { xFrac: 0, yFrac: 0 }
@@ -190,6 +203,7 @@ function measurePillarbox(video: HTMLVideoElement): { xFrac: number; yFrac: numb
 }
 
 function applyVideoCrop(video: HTMLVideoElement): void {
+  clearCropTimers()
   if (!USE_AUTO_CROP) {
     video.style.width = '100%'
     video.style.marginLeft = ''
@@ -204,20 +218,61 @@ function applyVideoCrop(video: HTMLVideoElement): void {
   video.style.transformOrigin = 'center center'
   let attempts = 0
   const tryMeasure = () => {
+    cropRetryTimer = null
+    // Video chưa có frame thật thì đợi, không tính là fail
+    if (!video.videoWidth || video.readyState < 2) {
+      if (attempts++ < 40) cropRetryTimer = setTimeout(tryMeasure, 500)
+      else console.warn('[camera] crop: video chưa ready sau 20s')
+      return
+    }
     const { xFrac, yFrac } = measurePillarbox(video)
     if (xFrac > 0 || yFrac > 0) {
       cropScaleX = xFrac > 0 ? 1 / xFrac : 1
       cropScaleY = yFrac > 0 ? 1 / yFrac : 1
       applyMirrorTo(video, true)
-    } else if (attempts++ < 6) {
-      setTimeout(tryMeasure, 400)
+      console.log(
+        '[camera] crop ok:',
+        `${video.videoWidth}x${video.videoHeight}`,
+        `xFrac=${xFrac.toFixed(3)} yFrac=${yFrac.toFixed(3)}`,
+        `scale=${cropScaleX.toFixed(3)},${cropScaleY.toFixed(3)}`,
+      )
+      startCropMonitor(video)
+    } else if (attempts++ < 40) {
+      // Chưa thấy viền (khung tối, chưa đủ sáng, tín hiệu chưa ổn định) -> thử tiếp
+      cropRetryTimer = setTimeout(tryMeasure, 500)
     } else {
+      // Hết 20s vẫn không đo được: giữ không crop nhưng vẫn theo dõi tiếp
+      console.warn('[camera] crop: không đo được viền sau 20s, giữ nguyên và theo dõi tiếp')
       cropScaleX = 1
       cropScaleY = 1
       applyMirrorTo(video, true)
+      startCropMonitor(video)
     }
   }
   tryMeasure()
+}
+
+function startCropMonitor(video: HTMLVideoElement): void {
+  if (cropMonitorTimer) return
+  // Theo dõi định kỳ: tín hiệu HDMI đổi, rút/cắm lại, đổi độ phân giải -> tự cắt lại
+  cropMonitorTimer = setInterval(() => {
+    if (!video.isConnected || !video.videoWidth || video.readyState < 2) return
+    try {
+      const { xFrac, yFrac } = measurePillarbox(video)
+      const nx = xFrac > 0 ? 1 / xFrac : 1
+      const ny = yFrac > 0 ? 1 / yFrac : 1
+      if (Math.abs(nx - cropScaleX) > 0.02 || Math.abs(ny - cropScaleY) > 0.02) {
+        cropScaleX = nx
+        cropScaleY = ny
+        applyMirrorTo(video, true)
+        console.log(
+          '[camera] crop update:',
+          `xFrac=${xFrac.toFixed(3)} yFrac=${yFrac.toFixed(3)}`,
+          `scale=${nx.toFixed(3)},${ny.toFixed(3)}`,
+        )
+      }
+    } catch {}
+  }, 5000)
 }
 
 async function startCamera(): Promise<void> {
@@ -322,6 +377,7 @@ async function startCamera(): Promise<void> {
 }
 
 function stopCamera(): void {
+  clearCropTimers()
   const tlStream = getTLStream()
   if (stream && stream !== tlStream) {
     stream.getTracks().forEach((track) => track.stop())
