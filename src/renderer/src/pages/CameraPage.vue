@@ -254,14 +254,23 @@ function applyVideoCrop(video: HTMLVideoElement): void {
 
 function startCropMonitor(video: HTMLVideoElement): void {
   if (cropMonitorTimer) return
-  // Theo dõi định kỳ: tín hiệu HDMI đổi, rút/cắm lại, đổi độ phân giải -> tự cắt lại
+  let lastW = video.videoWidth
+  let lastH = video.videoHeight
+  // Theo dõi định kỳ: tín hiệu HDMI đổi, rút/cắm lại, đổi độ phân giải -> tự cắt lại.
+  // KHÔNG đo lại theo nội dung khung hình: người di chuyển làm thay đổi độ sáng
+  // viền -> scale nhấp nhô (zoom thở). Chỉ đo lại khi độ phân giải đổi.
   cropMonitorTimer = setInterval(() => {
     if (!video.isConnected || !video.videoWidth || video.readyState < 2) return
+    // Đóng băng crop lúc đang chụp/countdown để khung hình đứng yên tuyệt đối
+    if (isCapturing.value) return
+    if (video.videoWidth === lastW && video.videoHeight === lastH) return
+    lastW = video.videoWidth
+    lastH = video.videoHeight
     try {
       const { xFrac, yFrac } = measurePillarbox(video)
       const nx = xFrac > 0 ? 1 / xFrac : 1
       const ny = yFrac > 0 ? 1 / yFrac : 1
-      if (Math.abs(nx - cropScaleX) > 0.02 || Math.abs(ny - cropScaleY) > 0.02) {
+      if (Math.abs(nx - cropScaleX) > 0.05 || Math.abs(ny - cropScaleY) > 0.05) {
         cropScaleX = nx
         cropScaleY = ny
         applyMirrorTo(video, true)
