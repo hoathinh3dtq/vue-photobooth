@@ -36,5 +36,12 @@ export function saveSession(res: LoginResponse): void {
   const booth = res.booth
   if (booth?.booth_code) localStorage.setItem('booth_code', booth.booth_code)
   if (booth?.type) localStorage.setItem('booth_type', normalizeBoothType(booth.type))
-  if (booth?.events?.length) localStorage.setItem('event_id', String(booth.events[0].id))
+  // Reconcile event_id theo booth vừa login để khỏi lẫn ảnh event cũ:
+  // - có events → lấy id mới; - biết booth mà không có event mới → xóa id cũ
+  // (booth event nhưng BE không trả events thì thà báo thiếu còn hơn lẫn lung tung)
+  if (booth?.events?.length) {
+    localStorage.setItem('event_id', String(booth.events[0].id))
+  } else if (booth?.type) {
+    localStorage.removeItem('event_id')
+  }
 }

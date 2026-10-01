@@ -1,6 +1,6 @@
 import { app, BrowserWindow, session, screen } from 'electron'
 import path from 'node:path'
-import { initCameraService } from './ipc'
+import { initCameraService, pruneOldEventPhotos } from './ipc'
 
 // Tự động cấp quyền media (như v1) - phải append trước khi app ready
 app.commandLine.appendSwitch('use-fake-ui-for-media-stream')
@@ -84,6 +84,10 @@ app.whenReady().then(() => {
   createWindow()
 
   void initCameraService().catch(() => {})
+
+  try {
+    pruneOldEventPhotos()
+  } catch {}
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

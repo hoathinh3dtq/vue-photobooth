@@ -32,12 +32,30 @@ export async function request<T = unknown>(
     const res = await fetch(`${BASE_URL}${path}`, opts)
     clearTimeout(timer)
     if (!res.ok) {
+      const text = await res.text()
+      let code = ''
+      let message = ''
+      try {
+        const parsed = JSON.parse(text) as { code?: unknown; message?: unknown }
+        code = String(parsed?.code || '')
+        message = String(parsed?.message || '')
+      } catch {
+        /* response không phải JSON: giữ text gốc */
+      }
+      // Hết gói BE trả 403 + code PLAN_EXPIRED: ném lỗi có cấu trúc để
+      // tầng trên hiện modal gia hạn, KHÔNG xóa token/reload như 401
+      if (code === 'PLAN_EXPIRED') {
+        const err = new Error(message || 'PLAN_EXPIRED') as Error & { code?: string; status?: number }
+        err.code = code
+        err.status = res.status
+        throw err
+      }
       if ((res.status === 401 || res.status === 403) && path !== '/login') {
         localStorage.removeItem('auth_token')
         window.location.reload()
         throw new Error('UNAUTHORIZED')
       }
-      throw new Error(await res.text())
+      throw new Error(text)
     }
     return (await res.json()) as T
   } catch (e) {

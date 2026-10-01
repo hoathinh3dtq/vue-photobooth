@@ -20,7 +20,9 @@ export interface AppConfig {
   [key: string]: unknown
 }
 
-export async function getConfig(): Promise<AppConfig> {
-  const res = await request<{ data?: AppConfig }>('GET', '/setting')
+export async function getConfig(boothCode?: string | null): Promise<AppConfig> {
+  const code = boothCode ?? localStorage.getItem('booth_code') ?? ''
+  const q = code ? `?booth_code=${encodeURIComponent(code)}` : ''
+  const res = await request<{ data?: AppConfig }>('GET', `/setting${q}`)
   return res.data ?? {}
 }

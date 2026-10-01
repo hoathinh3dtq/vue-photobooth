@@ -152,6 +152,7 @@ ipcMain.handle('save-event-photo', async (_event, base64: string, eventId: numbe
 
 ipcMain.handle('list-event-photos', async (_event, eventId: number | string) => {
   try {
+    pruneOldEventPhotos()
     const eventDir = path.join(app.getPath('userData'), 'events', String(eventId))
     if (!fs.existsSync(eventDir)) return []
     const files = fs.readdirSync(eventDir)
@@ -172,3 +173,34 @@ ipcMain.handle('read-event-photo', async (_event, filePath: string) => {
     return null
   }
 })
+
+// Xóa ảnh event quá cũ (mặc định 2 ngày) để khỏi phình ổ cứng máy booth
+const EVENT_PHOTO_MAX_AGE_MS = 2 * 24 * 60 * 60 * 1000
+
+export function pruneOldEventPhotos(): void {
+  try {
+    const eventsDir = path.join(app.getPath('userData'), 'events')
+    if (!fs.existsSync(eventsDir)) return
+    const now = Date.now()
+    for (const eventId of fs.readdirSync(eventsDir)) {
+      const dir = path.join(eventsDir, eventId)
+      try {
+        if (!fs.statSync(dir).isDirectory()) continue
+      } catch {
+        continue
+      }
+      for (const f of fs.readdirSync(dir)) {
+        if (!/\.png$/i.test(f)) continue
+        const fp = path.join(dir, f)
+        try {
+          if (now - fs.statSync(fp).mtimeMs > EVENT_PHOTO_MAX_AGE_MS) fs.unlinkSync(fp)
+        } catch {}
+      }
+      try {
+        if (fs.readdirSync(dir).length === 0) fs.rmdirSync(dir)
+      } catch {}
+    }
+  } catch (e) {
+    console.warn('[events] prune failed:', e)
+  }
+}
