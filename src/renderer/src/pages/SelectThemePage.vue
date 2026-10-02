@@ -1197,10 +1197,16 @@ async function doPrint(existingDataUrl?: string): Promise<void> {
     const rotated = await rotateDataUrl(dataUrlWithQR)
     const copies = flowStore.flow.selectTheme.copies()
     const printType = isTwoBySix ? '2x6' : (selectionStore.type || '4x6')
+    // TEMP: booth event không có category nên chưa có tên máy in.
+    // Fix cứng tạm theo khổ: 2x6 -> 'DS-RX1 2x6', còn lại -> 'DS-RX1 4x6'.
+    // TODO: thay bằng setting theo máy hoặc server trả về.
+    const TEMP_PRINTER_BY_SIZE: Record<string, string> = { '2x6': 'DS-RX1 2x6', '4x6': 'DS-RX1 4x6' }
+    const printName = selectionStore.printName || TEMP_PRINTER_BY_SIZE[printType] || TEMP_PRINTER_BY_SIZE['4x6']
+    console.log('[print] printer:', printName, 'type:', printType)
     // TEST-ONLY (dev): localStorage.skipPrint === '1' → bỏ qua in giấy, vẫn đi tiếp finish.
     // import.meta.env.DEV khiến bypass này chết hẳn ở bản .exe production.
     const skipPrint = import.meta.env.DEV && localStorage.getItem('skipPrint') === '1'
-    if (!selectionStore.printName && !skipPrint) {
+    if (!printName && !skipPrint) {
       loaderOverlay.remove()
       showPrintError('PRINTER_NOT_FOUND')
       return
@@ -1209,7 +1215,7 @@ async function doPrint(existingDataUrl?: string): Promise<void> {
     if (!skipPrint) {
       for (let c = 0; c < copies; c++) {
         const success = await Promise.race([
-          window.electronAPI.printImage(rotated, { type: printType, printName: selectionStore.printName }),
+          window.electronAPI.printImage(rotated, { type: printType, printName }),
           new Promise<null>((resolve) => setTimeout(() => resolve(null), 40000)),
         ])
         if (!success) {
@@ -1230,7 +1236,7 @@ async function doPrint(existingDataUrl?: string): Promise<void> {
     }
 
     sessionStore.lastPrintedImage = rotated
-    sessionStore.lastPrintOptions = { type: printType, printName: selectionStore.printName }
+    sessionStore.lastPrintOptions = { type: printType, printName }
     sessionStore.sessionQR = qrCode
 
     if (videoBlob) {
