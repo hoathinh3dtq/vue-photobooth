@@ -90,12 +90,12 @@ function mirrorValue(): number {
 
 function applyMirrorTo(el: HTMLElement, withCrop = true): void {
   const val = mirrorValue()
-  const sx = withCrop ? cropScaleX : 1
-  const sy = withCrop ? cropScaleY : 1
-  if (val === 1) el.style.transform = `scale(${-sx}, ${sy})`
-  else if (val === 2) el.style.transform = `scale(${sx}, ${-sy})`
-  else if (val === 3) el.style.transform = `scale(${-sx}, ${-sy})`
-  else el.style.transform = `scale(${sx}, ${sy})`
+  // Scale đều 2 chiều (giữ tỉ lệ, không bóp méo): lấy max để fill kín khung (cover)
+  const s = withCrop ? Math.max(cropScaleX, cropScaleY) : 1
+  if (val === 1) el.style.transform = `scale(${-s}, ${s})`
+  else if (val === 2) el.style.transform = `scale(${s}, ${-s})`
+  else if (val === 3) el.style.transform = `scale(${-s}, ${-s})`
+  else el.style.transform = `scale(${s}, ${s})`
 }
 
 // IDOL-MODE: overlay idol KHÔNG lật theo gương.
@@ -235,6 +235,7 @@ function applyVideoCrop(video: HTMLVideoElement): void {
         `${video.videoWidth}x${video.videoHeight}`,
         `xFrac=${xFrac.toFixed(3)} yFrac=${yFrac.toFixed(3)}`,
         `scale=${cropScaleX.toFixed(3)},${cropScaleY.toFixed(3)}`,
+        `frame:${document.querySelector('.camera-screen')?.clientWidth ?? 0}x${document.querySelector('.camera-screen')?.clientHeight ?? 0}`,
       )
       startCropMonitor(video)
     } else if (attempts++ < 40) {
@@ -276,6 +277,7 @@ function startCropMonitor(video: HTMLVideoElement): void {
         applyMirrorTo(video, true)
         console.log(
           '[camera] crop update:',
+          `${video.videoWidth}x${video.videoHeight}`,
           `xFrac=${xFrac.toFixed(3)} yFrac=${yFrac.toFixed(3)}`,
           `scale=${nx.toFixed(3)},${ny.toFixed(3)}`,
         )
@@ -486,7 +488,19 @@ function loadImg(src: string): Promise<HTMLImageElement> {
 }
 
 // Cắt ảnh DSLR cho giống preview: trim viền đen 4 góc rồi center-crop theo đúng
-// aspect của khung .camera-screen đang hiển thị (WYSIWYG)
+// aspect của khung .camera-screen đang hiển thị (WYSIWYG).
+// Số zoom cố định (tìm bằng mắt cho hợp body máy hiện tại).
+// Chỉnh không cần build lại: localStorage.setItem('dslr_match_zoom', '1.2')
+function dslrMatchZoom(): { zoom: number; src: string } {
+  try {
+    const raw = localStorage.getItem('dslr_match_zoom')
+    if (raw !== null) {
+      const v = Number(raw)
+      if (Number.isFinite(v) && v >= 1 && v <= 2) return { zoom: v, src: `localStorage=${raw}` }
+    }
+  } catch {}
+  return { zoom: 1.03, src: 'default' }
+}
 async function cropDslrToMatchPreview(image: string): Promise<string> {
   try {
     const img = await loadImg(image)
@@ -509,9 +523,8 @@ async function cropDslrToMatchPreview(image: string): Promise<string> {
     let sx = 0
     let sy = 0
     if (Math.abs(curAspect - targetAspect) / targetAspect < 0.01) {
-      return trimmed.toDataURL('image/png')
-    }
-    if (curAspect > targetAspect) {
+      // Đã cùng aspect nhưng vẫn cần zoom thêm cho khớp FOV preview
+    } else if (curAspect > targetAspect) {
       ch = th
       cw = Math.round(th * targetAspect)
       sx = Math.round((tw - cw) / 2)
@@ -520,8 +533,19 @@ async function cropDslrToMatchPreview(image: string): Promise<string> {
       ch = Math.round(tw / targetAspect)
       sy = Math.round((th - ch) / 2)
     }
+    const { zoom, src: zoomSrc } = dslrMatchZoom()
+    if (zoom > 1.001) {
+      const zw = Math.round(cw / zoom)
+      const zh = Math.round(ch / zoom)
+      sx += Math.round((cw - zw) / 2)
+      sy += Math.round((ch - zh) / 2)
+      cw = zw
+      ch = zh
+    }
     if (cw <= 0 || ch <= 0) return trimmed.toDataURL('image/png')
-    console.log('[camera] dslr crop:', `${tw}x${th}`, '->', `${cw}x${ch}`, 'aspect:', targetAspect.toFixed(3))
+    const scrW = screenEl?.clientWidth ?? 0
+    const scrH = screenEl?.clientHeight ?? 0
+    console.log('[camera] dslr crop:', `${tw}x${th}`, '->', `${cw}x${ch}`, 'aspect:', targetAspect.toFixed(3), 'zoom:', zoom.toFixed(3), `(${zoomSrc})`, `frame:${scrW}x${scrH}`)
     const out = document.createElement('canvas')
     out.width = cw
     out.height = ch
