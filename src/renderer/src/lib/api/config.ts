@@ -17,6 +17,8 @@ export interface AppConfig {
   hide_logout_button?: number
   booth_type?: number | string
   event_id?: number | string
+  printer_26?: string
+  printer_46?: string
   [key: string]: unknown
 }
 

@@ -1197,12 +1197,12 @@ async function doPrint(existingDataUrl?: string): Promise<void> {
     const rotated = await rotateDataUrl(dataUrlWithQR)
     const copies = flowStore.flow.selectTheme.copies()
     const printType = isTwoBySix ? '2x6' : (selectionStore.type || '4x6')
-    // TEMP: booth event không có category nên chưa có tên máy in.
-    // Fix cứng tạm theo khổ: 2x6 -> 'DS-RX1 2x6', còn lại -> 'DS-RX1 4x6'.
-    // TODO: thay bằng setting theo máy hoặc server trả về.
-    const TEMP_PRINTER_BY_SIZE: Record<string, string> = { '2x6': 'DS-RX1 2x6', '4x6': 'DS-RX1 4x6' }
-    const printName = selectionStore.printName || TEMP_PRINTER_BY_SIZE[printType] || TEMP_PRINTER_BY_SIZE['4x6']
+    // Tên máy in theo khổ, ưu tiên: máy của category (luồng store) -> setting server -> rỗng (báo lỗi)
+    const cfg = configStore.config || {}
+    const cfgPrinter = printType === '2x6' ? cfg.printer_26 : cfg.printer_46
+    const printName = selectionStore.printName || String(cfgPrinter || '')
     console.log('[print] printer:', printName, 'type:', printType)
+    console.log('[print] cfg printers:', JSON.stringify({ p26: cfg.printer_26 ?? null, p46: cfg.printer_46 ?? null }))
     // TEST-ONLY (dev): localStorage.skipPrint === '1' → bỏ qua in giấy, vẫn đi tiếp finish.
     // import.meta.env.DEV khiến bypass này chết hẳn ở bản .exe production.
     const skipPrint = import.meta.env.DEV && localStorage.getItem('skipPrint') === '1'
