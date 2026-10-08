@@ -3,12 +3,14 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useFlowStore } from '../stores/flow'
 import { useSelectionStore } from '../stores/selection'
 import { useSessionStore } from '../stores/session'
+import { useConfigStore } from '../stores/config'
 import { createPaymentQR, checkPaymentStatus } from '../lib/api/payment'
 import { showModal, showModalClose, hideModal } from '../lib/modal'
 
 const flowStore = useFlowStore()
 const selectionStore = useSelectionStore()
 const sessionStore = useSessionStore()
+const configStore = useConfigStore()
 
 const timeLapsePath = ref(sessionStore.timeLapsePath)
 const printedImage = ref(sessionStore.lastPrintedImage)
@@ -148,6 +150,15 @@ function handleReprint(): void {
     if (flowStore.type === 'event') {
       await printCopies(qty)
       return
+    }
+
+    // test_photo = 1: ảnh test, in lại thẳng như user kỹ thuật
+    {
+      const t = configStore.config?.test_photo
+      if (t === 1 || t === true || String(t ?? '').trim() === '1') {
+        await printCopies(qty)
+        return
+      }
     }
 
     try {

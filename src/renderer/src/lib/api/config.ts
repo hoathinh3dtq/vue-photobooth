@@ -19,6 +19,7 @@ export interface AppConfig {
   event_id?: number | string
   printer_26?: string
   printer_46?: string
+  test_photo?: number | string | boolean
   [key: string]: unknown
 }
 

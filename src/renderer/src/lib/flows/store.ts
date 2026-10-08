@@ -6,6 +6,12 @@ import { showModal, showModalClose, hideModal } from '../modal'
 import { useConfigStore } from '../../stores/config'
 import { useSelectionStore } from '../../stores/selection'
 
+// test_photo = 1 (setting server): ảnh test, bỏ qua thanh toán như user_type = 1
+function isTestPhoto(): boolean {
+  const v = useConfigStore().config?.test_photo
+  return v === 1 || v === true || String(v ?? '').trim() === '1'
+}
+
 export const storeFlow: BoothFlow = {
   screens: ['home', 'select-type', 'camera', 'select-theme', 'finish'],
   camera: {
@@ -25,9 +31,11 @@ export const storeFlow: BoothFlow = {
       return printSessionApi(sessionId, sel.categoryId || null)
     },
     previewLabel() {
-      return String(localStorage.getItem('user_type')).trim() === '1'
-        ? 'IN ẢNH'
-        : 'THANH TOÁN VÀ IN'
+      // user_type = 1 (kỹ thuật) hoặc test_photo = 1 (ảnh test): in thẳng, bỏ qua thanh toán
+      if (String(localStorage.getItem('user_type')).trim() === '1' || isTestPhoto()) {
+        return 'IN ẢNH'
+      }
+      return 'THANH TOÁN VÀ IN'
     },
     copies() {
       const sel = useSelectionStore()
@@ -38,7 +46,7 @@ export const storeFlow: BoothFlow = {
       return sel.type === '2x6'
     },
     beforePrint() {
-    if (String(localStorage.getItem('user_type')).trim() === '1') {
+    if (String(localStorage.getItem('user_type')).trim() === '1' || isTestPhoto()) {
       return Promise.resolve(true)
     }
       const sel = useSelectionStore()

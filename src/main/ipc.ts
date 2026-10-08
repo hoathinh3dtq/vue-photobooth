@@ -1,4 +1,4 @@
-import { ipcMain, app } from 'electron'
+import { ipcMain, app, BrowserWindow } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import { execFile } from 'node:child_process'
@@ -91,13 +91,15 @@ try {
 }
 `.trim()
 
-    // Async để không block main process (trước đây execFileSync treo cả app khi driver bận)
+    // Async để không block main process (trước đây execFileSync treo cả app khi driver bận).
+    // windowsHide + -WindowStyle Hidden: cửa sổ PowerShell không hiện lên cướp focus
+    // làm taskbar trồi ra trong lúc kiosk đang in.
     let out = ''
     try {
       const { stdout } = await execFileAsync(
         'powershell',
-        ['-ExecutionPolicy', 'Bypass', '-NoProfile', '-Command', psScript],
-        { timeout: 30000, encoding: 'utf8' },
+        ['-ExecutionPolicy', 'Bypass', '-NoProfile', '-WindowStyle', 'Hidden', '-Command', psScript],
+        { timeout: 30000, encoding: 'utf8', windowsHide: true },
       )
       out = stdout
     } catch (e) {
@@ -119,6 +121,14 @@ try {
   } finally {
     try {
       fs.unlinkSync(pngFile)
+    } catch {}
+    // Giành lại focus cho kiosk sau khi in (phòng driver/printer dialog cướp focus)
+    try {
+      const w = BrowserWindow.getAllWindows()[0]
+      if (w && !w.isDestroyed()) {
+        w.moveTop()
+        w.focus()
+      }
     } catch {}
   }
 })
