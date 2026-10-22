@@ -23,7 +23,9 @@ export const useFlowStore = defineStore('flow', {
     flow: pickFlow() as BoothFlow,
   }),
   getters: {
-    type: (state): BoothType => (state.flow === eventFlow ? 'event' : 'store'),
+    // Đọc booth_type LIVE thay vì so loại flow object được ghim lúc mở app:
+    // flow object có thể là storeFlow nếu app mở trước khi booth_type được lưu.
+    type: (): BoothType => (localStorage.getItem('booth_type') === 'event' ? 'event' : 'store'),
   },
   actions: {
     reload(): void {

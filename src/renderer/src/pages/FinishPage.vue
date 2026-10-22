@@ -147,6 +147,15 @@ function handleReprint(): void {
     const qty = await promptQuantity()
     if (!qty) return
 
+    // Log soi: vì sao in lại đi nhánh event / test / thanh toán
+    const t_dbg = configStore.config?.test_photo
+    console.log(
+      '[reprint] flow:', flowStore.type,
+      'booth_type:', localStorage.getItem('booth_type'),
+      'test_photo:', String(t_dbg ?? 'null'),
+      'qty:', qty,
+    )
+
     if (flowStore.type === 'event') {
       await printCopies(qty)
       return

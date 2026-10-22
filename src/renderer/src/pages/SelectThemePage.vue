@@ -179,6 +179,8 @@ function scrollThemeChoices(direction: number): void {
 }
 
 function selectTheme(themeId: string): void {
+  // Spam click trùng theme: bỏ qua hẳn, khỏi dựng lại preview mỗi click
+  if (selectedTheme.value === themeId) return
   selectedTheme.value = themeId
   selectionStore.selectedTheme = themeId
   filledPhotos.length = 0
@@ -243,31 +245,39 @@ function detectSlots(src: string): Promise<{ ratio: string; slots: Slot[]; proce
     img.onload = () => {
       const iw = img.naturalWidth
       const ih = img.naturalHeight
+      // Giới hạn mặt ảnh phân tích (~2.6M px): flood fill dò khe tốn ~50-100 bytes/px,
+      // chặn cap này để spam click hàng loạt theme không blow RAM/blend crash.
+      const MAX_ANALYSIS_PIXELS = 2600000
+      const down = iw * ih > MAX_ANALYSIS_PIXELS ? Math.sqrt(MAX_ANALYSIS_PIXELS / (iw * ih)) : 1
+      const aw = Math.max(1, Math.round(iw * down))
+      const ah = Math.max(1, Math.round(ih * down))
       const canvas = document.createElement('canvas')
-      canvas.width = iw
-      canvas.height = ih
+      canvas.width = aw
+      canvas.height = ah
       const ctx = canvas.getContext('2d')
       if (!ctx) {
         slotCache[src] = { ratio: '1 / 1', slots: [], processedSrc: src }
         resolve(slotCache[src])
         return
       }
-      ctx.drawImage(img, 0, 0)
+      ctx.drawImage(img, 0, 0, aw, ah)
       let imageData: ImageData
       try {
-        imageData = ctx.getImageData(0, 0, iw, ih)
+        imageData = ctx.getImageData(0, 0, aw, ah)
       } catch {
-        resolve({ ratio: `${iw} / ${ih}`, slots: [], processedSrc: img.src })
+        // Canvas bị taint (CORS): cache kết quả rỗng, tránh dò lại vô hạn gây crash renderer
+        slotCache[src] = { ratio: `${iw} / ${ih}`, slots: [], processedSrc: img.src }
+        resolve(slotCache[src])
         return
       }
       const pixels = imageData.data
 
       function floodFill(transparentMode: boolean) {
-        const visited = new Uint8Array(iw * ih)
+        const visited = new Uint8Array(aw * ah)
         const regions: Array<{ minX: number; maxX: number; minY: number; maxY: number; w: number; h: number; pixels: number[] }> = []
-        for (let y = 0; y < ih; y++) {
-          for (let x = 0; x < iw; x++) {
-            const idx = y * iw + x
+        for (let y = 0; y < ah; y++) {
+          for (let x = 0; x < aw; x++) {
+            const idx = y * aw + x
             if (visited[idx]) continue
             const pi = idx * 4
             const a = pixels[pi + 3]
@@ -287,7 +297,7 @@ function detectSlots(src: string): Promise<{ ratio: string; slots: Slot[]; proce
             while (stack.length) {
               const cy = stack.pop() as number
               const cx = stack.pop() as number
-              const ci = cy * iw + cx
+              const ci = cy * aw + cx
               if (visited[ci]) continue
               visited[ci] = 1
               const cpi = ci * 4
@@ -303,9 +313,9 @@ function detectSlots(src: string): Promise<{ ratio: string; slots: Slot[]; proce
               if (cy < minY) minY = cy
               if (cy > maxY) maxY = cy
               if (cx > 0) stack.push(cx - 1, cy)
-              if (cx < iw - 1) stack.push(cx + 1, cy)
+              if (cx < aw - 1) stack.push(cx + 1, cy)
               if (cy > 0) stack.push(cx, cy - 1)
-              if (cy < ih - 1) stack.push(cx, cy + 1)
+              if (cy < ah - 1) stack.push(cx, cy + 1)
             }
 
             if (regionPixels.length > 100) {
@@ -328,26 +338,26 @@ function detectSlots(src: string): Promise<{ ratio: string; slots: Slot[]; proce
         const ti: number[] = []
         const s = regions
           .filter((r) => {
-            const keep = r.w > 20 && r.h > 20 && (r.w > iw * 0.05 || r.h > ih * 0.05) && !(r.w > iw * 0.8 && r.h > ih * 0.8)
+            const keep = r.w > 20 && r.h > 20 && (r.w > aw * 0.05 || r.h > ah * 0.05) && !(r.w > aw * 0.8 && r.h > ah * 0.8)
             if (keep && !isTransparentMode) {
               for (let i = 0; i < r.pixels.length; i += 2) {
-                ti.push(r.pixels[i + 1] * iw + r.pixels[i])
+                ti.push(r.pixels[i + 1] * aw + r.pixels[i])
               }
             }
             return keep
           })
           .sort((a, b) => a.minY - b.minY || a.minX - b.minX)
           .map((r) => ({
-            x: (r.minX / iw) * 100,
-            y: (r.minY / ih) * 100,
-            w: (r.w / iw) * 100,
-            h: (r.h / ih) * 100,
+            x: (r.minX / aw) * 100,
+            y: (r.minY / ah) * 100,
+            w: (r.w / aw) * 100,
+            h: (r.h / ah) * 100,
           }))
         return { slots: s, indices: ti }
       }
 
       const hasTransparent = (() => {
-        for (let i = 0; i < iw * ih; i++) {
+        for (let i = 0; i < aw * ah; i++) {
           if (pixels[i * 4 + 3] < 30) return true
         }
         return false
@@ -366,13 +376,14 @@ function detectSlots(src: string): Promise<{ ratio: string; slots: Slot[]; proce
 
       let processedSrc = src
       if (!usedTransparent && transparentIndices.length > 0) {
+        // Carve alpha trên cùng canvas phân tích (đồng bộ toạ độ, đã giới hạn kích thước)
         const pCanvas = document.createElement('canvas')
-        pCanvas.width = iw
-        pCanvas.height = ih
+        pCanvas.width = aw
+        pCanvas.height = ah
         const pCtx = pCanvas.getContext('2d')
         if (pCtx) {
-          pCtx.drawImage(img, 0, 0)
-          const pData = pCtx.getImageData(0, 0, iw, ih)
+          pCtx.drawImage(img, 0, 0, aw, ah)
+          const pData = pCtx.getImageData(0, 0, aw, ah)
           const pp = pData.data
           for (const idx of transparentIndices) {
             pp[idx * 4 + 3] = 0
@@ -403,6 +414,20 @@ function renderThemePreview(): void {
   if (!theme) return
 
   if (!theme.slots || theme.slots.length === 0) {
+    // Detect xong (ratio != '') mà vẫn 0 khe → render khung phẳng, KHÔNG dò lại:
+    // vòng "Đang tải... -> detect -> rỗng -> Đang tải..." tạo microtask vô tận
+    // khiến app treo/crash khi spam chọn theme (ảnh taint CORS hoặc không có khe).
+    if (theme.ratio) {
+      stage.innerHTML = ''
+      stage.className = 'theme-preview-stage'
+      stage.style.aspectRatio = theme.ratio
+      const frame = document.createElement('img')
+      frame.className = 'theme-frame-image'
+      frame.src = theme.processedSrc || theme.src
+      frame.alt = `Theme ${selectedTheme.value}`
+      stage.appendChild(frame)
+      return
+    }
     stage.innerHTML = '<p class="theme-preview-loading">Đang tải...</p>'
     stage.className = 'theme-preview-stage is-empty'
     void detectSlots(theme.src).then((result) => {
