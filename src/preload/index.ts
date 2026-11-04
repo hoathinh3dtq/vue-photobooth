@@ -23,10 +23,58 @@ export interface CameraCaptureResult {
   error?: string
 }
 
+export interface SidecarCamera {
+  id: string
+  name: string
+  port?: string
+  protocol?: string
+  selectionId?: string
+}
+
+export interface CanonEdsdkStatus {
+  connected: boolean
+  model?: string
+  serial?: string
+  battery?: number
+  error?: string
+  eds?: number
+}
+
+export interface CanonEdsdkResult {
+  ok: boolean
+  result?: unknown
+  code?: string
+  eds?: number
+  message?: string
+  event?: string
+}
+
 export interface CameraStatusResult {
   brand: string | null
   provider: string | null
   available: boolean
+}
+
+export interface SidecarCamera {
+  id: string
+  name: string
+  port?: string
+  protocol?: string
+  selectionId?: string
+}
+
+export interface SidecarDetectResult {
+  available: boolean
+  exePath: string | null
+  raw: string
+  lines: string[]
+  fujiLoaded: boolean
+  fujiInit: boolean
+  sonyInit: boolean
+  sonyVersion: string | null
+  cameras: SidecarCamera[]
+  error: string | null
+  elapsedMs: number
 }
 
 const api = {
@@ -37,6 +85,23 @@ const api = {
     capture: (): Promise<CameraCaptureResult> => ipcRenderer.invoke('camera:capture'),
     status: (): Promise<CameraStatusResult> => ipcRenderer.invoke('camera:status'),
     detect: (): Promise<CameraStatusResult> => ipcRenderer.invoke('camera:detect'),
+    sidecarDetect: (): Promise<SidecarDetectResult> => ipcRenderer.invoke('camera:sidecar-detect'),
+    canonEdsdk: {
+      init: (): Promise<CanonEdsdkResult> => ipcRenderer.invoke('camera:canon-edsdk-init'),
+      status: (): Promise<CanonEdsdkResult> => ipcRenderer.invoke('camera:canon-edsdk-status'),
+      liveViewStart: (): Promise<CanonEdsdkResult> => ipcRenderer.invoke('camera:canon-edsdk-liveview-start'),
+      liveViewFrame: (): Promise<CanonEdsdkResult> => ipcRenderer.invoke('camera:canon-edsdk-liveview-frame'),
+      liveViewStop: (): Promise<CanonEdsdkResult> => ipcRenderer.invoke('camera:canon-edsdk-liveview-stop'),
+      capture: (outputPath: string, autofocus?: boolean, timeoutMs?: number): Promise<CanonEdsdkResult> =>
+        ipcRenderer.invoke('camera:canon-edsdk-capture', { outputPath, autofocus, timeoutMs }),
+      captureDataUrl: (autofocus?: boolean, timeoutMs?: number): Promise<CanonEdsdkResult & { imageDataUrl?: string }> =>
+        ipcRenderer.invoke('camera:canon-edsdk-capture-dataurl', { autofocus, timeoutMs }),
+      lens: (step: number): Promise<CanonEdsdkResult> => ipcRenderer.invoke('camera:canon-edsdk-lens', step),
+      get: (prop: number): Promise<CanonEdsdkResult> => ipcRenderer.invoke('camera:canon-edsdk-get', prop),
+      set: (prop: number, value: number): Promise<CanonEdsdkResult> => ipcRenderer.invoke('camera:canon-edsdk-set', prop, value),
+      importRecent: (dir: string, count?: number): Promise<CanonEdsdkResult> =>
+        ipcRenderer.invoke('camera:canon-edsdk-import-recent', { dir, count }),
+    },
   },
   printImage: (dataUrl: string, opts: PrintOptions): Promise<PrintResult> =>
     ipcRenderer.invoke('print-image', dataUrl, opts),

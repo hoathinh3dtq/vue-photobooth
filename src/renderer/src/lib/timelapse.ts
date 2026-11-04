@@ -34,7 +34,7 @@ export function releaseTLStream(): void {
   TL.frames = []
 }
 
-export async function startTimeLapse(): Promise<void> {
+export async function startTimeLapse(deviceId?: string): Promise<void> {
   if (tlStarting) {
     await tlStarting
     return
@@ -52,12 +52,11 @@ export async function startTimeLapse(): Promise<void> {
     TL.video = video
 
     try {
+      const videoConstraints: MediaTrackConstraints = deviceId
+        ? { deviceId: { exact: deviceId }, width: { ideal: 1920 }, height: { ideal: 1080 }, aspectRatio: { ideal: 16 / 9 } }
+        : { width: { ideal: 1920 }, height: { ideal: 1080 }, aspectRatio: { ideal: 16 / 9 } }
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-          aspectRatio: { ideal: 16 / 9 },
-        },
+        video: videoConstraints,
       })
       if (stopRequested) {
         stream.getTracks().forEach((t) => t.stop())

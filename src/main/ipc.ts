@@ -4,6 +4,8 @@ import fs from 'node:fs'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { detectCamera, capture, status } from './services/digiCam'
+import { detectSidecar } from './services/sidecarCam'
+import * as canonEdsdk from './services/canonEdsdk'
 
 const execFileAsync = promisify(execFile)
 
@@ -23,9 +25,52 @@ export function initCameraService(): Promise<unknown> {
   return detectCamera()
 }
 
+// --- Camera (sidecar HihiCamBridge: Fuji/Sony SDK + webcam/UVC) ---
+export function initSidecarCamService(): Promise<unknown> {
+  return detectSidecar().then((r) => {
+    const cams = r.cameras.map((c) => `${c.name} (${c.protocol ?? '?'})`).join(', ') || 'không có camera'
+    console.log(
+      `[sidecar] exe=${r.exePath ?? 'missing'} fuji=${r.fujiInit} sony=${r.sonyInit}${r.sonyVersion ? ' ' + r.sonyVersion : ''} webcams="${cams}"${r.error ? ' error=' + r.error : ''}`,
+    )
+    return r
+  })
+}
+
+// --- Camera (Canon EDSDK helper — thay digiCamControl) ---
+export function initCanonEdsdkService(): Promise<unknown> {
+  return canonEdsdk.initCanonEdsdk().then((r) => {
+    console.log('[canon-edsdk] init:', JSON.stringify(r))
+    return r
+  })
+}
+
 ipcMain.handle('camera:detect', () => detectCamera())
 ipcMain.handle('camera:status', () => status())
 ipcMain.handle('camera:capture', () => capture())
+// Sidecar detection (Fuji XAPI / Sony CRSDK / webcam) — App 2-style status
+ipcMain.handle('camera:sidecar-detect', () => detectSidecar())
+// Canon EDSDK helper (compile runtime + JSON-RPC over stdin/stdout)
+ipcMain.handle('camera:canon-edsdk-init', () => canonEdsdk.initCanonEdsdk())
+ipcMain.handle('camera:canon-edsdk-status', () => canonEdsdk.canonStatus())
+ipcMain.handle('camera:canon-edsdk-liveview-start', () => canonEdsdk.canonLiveViewStart())
+ipcMain.handle('camera:canon-edsdk-liveview-frame', () => canonEdsdk.canonLiveViewFrame())
+ipcMain.handle('camera:canon-edsdk-liveview-stop', () => canonEdsdk.canonLiveViewStop())
+ipcMain.handle('camera:canon-edsdk-capture', (_e, opts: { outputPath: string; autofocus?: boolean; timeoutMs?: number }) =>
+  canonEdsdk.canonCapture(opts.outputPath, opts?.autofocus ?? true, opts?.timeoutMs ?? 20000),
+)
+ipcMain.handle('camera:canon-edsdk-capture-dataurl', (_e, opts: { outputPath?: string; autofocus?: boolean; timeoutMs?: number } = {}) =>
+  canonEdsdk.canonCaptureDataUrl(
+    opts?.outputPath || path.join(app.getPath('temp'), `ptb-canon-${Date.now()}.jpg`),
+    opts?.autofocus ?? true,
+    opts?.timeoutMs ?? 20000,
+  ),
+)
+ipcMain.handle('camera:canon-edsdk-lens', (_e, step: number) => canonEdsdk.canonDriveLens(step))
+ipcMain.handle('camera:canon-edsdk-get', (_e, prop: number) => canonEdsdk.canonGetProperty(prop))
+ipcMain.handle('camera:canon-edsdk-set', (_e, prop: number, value: number) => canonEdsdk.canonSetProperty(prop, value))
+ipcMain.handle('camera:canon-edsdk-import-recent', (_e, opts: { dir: string; count?: number }) =>
+  canonEdsdk.canonImportRecent(opts.dir, opts?.count ?? 1),
+)
 
 ipcMain.handle('print-image', async (_event, dataUrl: string, opts: { type?: string; printName?: string }) => {
   const targetPrinter = opts?.printName ?? ''

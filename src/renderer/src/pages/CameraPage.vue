@@ -4,7 +4,7 @@ import { useConfigStore } from '../stores/config'
 import { useFlowStore } from '../stores/flow'
 import { useSelectionStore } from '../stores/selection'
 import { useSessionStore } from '../stores/session'
-import { getTLStream, stopTimeLapse, whenTLReady } from '../lib/timelapse'
+import { getTLStream, releaseTLStream, startTimeLapse, stopTimeLapse, whenTLReady } from '../lib/timelapse'
 
 interface CapturedPhoto {
   image: string
@@ -32,6 +32,17 @@ const isCapturing = ref(false)
 const captureCompleted = ref(false)
 const captureStarted = ref(false)
 const webcamReady = ref(false)
+const useCanonLiveView = ref(false)
+const canonPreviewSrc = ref('')
+const canonPreviewRef = ref<HTMLImageElement | null>(null)
+const useHdmiPreview = ref(false)
+const hdmiDeviceId = ref<string | null>(null)
+const canonLiveViewDisplay = ref(false)
+const canonConnected = ref(false)
+const videoDevices = ref<any[]>([])
+const selectedVideoSource = ref('')
+let canonLiveViewGeneration = 0
+let canonLiveViewTimer: ReturnType<typeof setTimeout> | null = null
 
 const totalTake = computed(() => flowStore.flow.camera.totalTake())
 const maxRetake = computed(() => configStore.config?.re_take ?? 2)
@@ -286,6 +297,161 @@ function startCropMonitor(video: HTMLVideoElement): void {
   }, 5000)
 }
 
+async function startCanonLiveView(display: boolean): Promise<void> {
+  const api = (window as any).electronAPI
+  if (!api?.camera?.canonEdsdk) return
+  const gen = ++canonLiveViewGeneration
+  useCanonLiveView.value = display
+  canonLiveViewDisplay.value = display
+  try {
+    await api.camera.canonEdsdk.liveViewStart()
+  } catch (e) {
+    console.warn('[camera] Canon live view start failed:', e)
+    useCanonLiveView.value = false
+    canonLiveViewDisplay.value = false
+    return
+  }
+  if (gen !== canonLiveViewGeneration) return
+
+  const loop = async () => {
+    if (gen !== canonLiveViewGeneration) return
+    if (display && !useCanonLiveView.value) return
+    let delay = display ? 80 : 500
+    try {
+      const res = await api.camera.canonEdsdk.liveViewFrame()
+      if (gen !== canonLiveViewGeneration) return
+      if (res?.ok && res?.result?.jpeg) {
+        if (display) {
+          const dataUrl = `data:image/jpeg;base64,${res.result.jpeg}`
+          const img = canonPreviewRef.value
+          if (img) {
+            img.src = dataUrl
+            try { await img.decode() } catch { /* ignore */ }
+            applyMirrorTo(img, true)
+          }
+          canonPreviewSrc.value = dataUrl
+          webcamReady.value = true
+            delay = 0
+        }
+      } else if (res?.result?.notReady) {
+        delay = display ? 100 : 500
+      } else {
+        delay = display ? 150 : 500
+      }
+    } catch (e) {
+      console.warn('[camera] Canon live view frame error:', e)
+      delay = 500
+    }
+    if (gen === canonLiveViewGeneration && (display ? useCanonLiveView.value : true)) {
+      canonLiveViewTimer = setTimeout(loop, delay)
+    }
+  }
+  loop()
+}
+
+function pauseCanonLiveView(): void {
+  canonLiveViewGeneration++
+  if (canonLiveViewTimer) {
+    clearTimeout(canonLiveViewTimer)
+    canonLiveViewTimer = null
+  }
+}
+
+function stopCanonLiveView(): void {
+  pauseCanonLiveView()
+  const api = (window as any).electronAPI
+  try {
+    api?.camera?.canonEdsdk?.liveViewStop?.()
+  } catch {
+    /* ignore */
+  }
+  useCanonLiveView.value = false
+  canonLiveViewDisplay.value = false
+}
+
+async function loadVideoDevices(): Promise<string | null> {
+  let devices = await navigator.mediaDevices.enumerateDevices()
+  let videos = devices.filter((d) => d.kind === 'videoinput')
+  if (videos.every((v) => !v.label)) {
+    const temp = await navigator.mediaDevices.getUserMedia({ video: true })
+    temp.getTracks().forEach((t) => t.stop())
+    devices = await navigator.mediaDevices.enumerateDevices()
+    videos = devices.filter((d) => d.kind === 'videoinput')
+  }
+  videoDevices.value = videos
+  const stored = localStorage.getItem('hdmi_video_device_id')
+  if (stored && videos.some((v) => v.deviceId === stored)) return stored
+  const match = videos.find((v) => /hdmi|capture|avermedia|elgato|magewell/i.test(v.label))
+  if (match) return match.deviceId
+  if (videos.length > 1) {
+    const alt = videos.find((v) => !/usb video/i.test(v.label))
+    if (alt) return alt.deviceId
+  }
+  console.log('[camera] video devices:', videos.map((v) => `${v.label || '?'} (${v.deviceId})`).join(', '))
+  return null
+}
+
+async function applyPreviewSource(deviceId: string | null): Promise<void> {
+  stopCanonLiveView()
+  releaseTLStream()
+  stopCamera()
+  useHdmiPreview.value = false
+  hdmiDeviceId.value = null
+  useCanonLiveView.value = false
+  webcamReady.value = false
+  cameraError.value = ''
+  if (deviceId) {
+    localStorage.setItem('hdmi_video_device_id', deviceId)
+    await startHdmiPreview(deviceId)
+    if (canonConnected.value) await startCanonLiveView(false)
+  } else {
+    localStorage.removeItem('hdmi_video_device_id')
+    if (canonConnected.value) {
+      await startCanonLiveView(true)
+    } else {
+      await startCamera()
+    }
+  }
+}
+
+function onPreviewSourceChange(): void {
+  void applyPreviewSource(selectedVideoSource.value || null)
+}
+
+async function startHdmiPreview(deviceId: string): Promise<void> {
+  const video = videoRef.value
+  if (!video) return
+  useHdmiPreview.value = true
+  hdmiDeviceId.value = deviceId
+  releaseTLStream()
+  await startTimeLapse(deviceId)
+  const tlStream = getTLStream()
+  if (tlStream && tlStream.active) {
+    stream = tlStream
+    video.srcObject = stream
+    await video.play()
+    applyVideoCrop(video)
+    webcamReady.value = video.videoWidth > 0
+    cameraError.value = ''
+    return
+  }
+  try {
+    const s = await navigator.mediaDevices.getUserMedia({
+      video: { deviceId: { exact: deviceId }, width: { ideal: 1920 }, height: { ideal: 1080 }, aspectRatio: { ideal: 16 / 9 } },
+    })
+    stream = s
+    video.srcObject = s
+    await video.play()
+    applyVideoCrop(video)
+    webcamReady.value = video.videoWidth > 0
+    cameraError.value = ''
+  } catch (e) {
+    console.error('[camera] HDMI preview failed:', e)
+    useHdmiPreview.value = false
+    hdmiDeviceId.value = null
+  }
+}
+
 async function startCamera(): Promise<void> {
   const video = videoRef.value
   if (!video) return
@@ -499,7 +665,7 @@ function dslrMatchZoom(): { zoom: number; src: string } {
       if (Number.isFinite(v) && v >= 1 && v <= 2) return { zoom: v, src: `localStorage=${raw}` }
     }
   } catch {}
-  return { zoom: 1.03, src: 'default' }
+  return { zoom: 1.0, src: 'default' }
 }
 async function cropDslrToMatchPreview(image: string): Promise<string> {
   try {
@@ -557,6 +723,10 @@ async function cropDslrToMatchPreview(image: string): Promise<string> {
 }
 
 async function captureImage(replaceIndex = -1): Promise<boolean> {
+  const wasCanonDisplay = useCanonLiveView.value
+  const canonWasActive = useCanonLiveView.value || (useHdmiPreview.value && canonConnected.value)
+  if (canonWasActive) pauseCanonLiveView()
+  try {
   const video = videoRef.value
   const capturedPreview = capturedPreviewRef.value
   const flashEl = flashRef.value
@@ -572,25 +742,48 @@ async function captureImage(replaceIndex = -1): Promise<boolean> {
 
   let image = ''
 
-  // Ưu tiên chụp qua DSLR provider (Canon/Nikon/...) ở main process.
-  // Nếu không có provider (chưa cấu hình/SDK thiếu) sẽ trả về lỗi -> fallback webcam.
+  // Ưu tiên 1: Canon EDSDK qua sidecar (thay digiCamControl) — chụp trực tiếp qua USB,
+  // không bị bug nút kẹt và không cần digiCamControl đang chạy.
   try {
-    let timedOut = false
-    const res = await Promise.race([
-      window.electronAPI.camera.capture(),
-      wait(15000).then(() => {
-        timedOut = true
-        return null
-      }),
-    ])
-    if (timedOut) console.warn('[camera] DSLR capture timeout, fallback webcam')
-    if (res && res.ok && res.imageDataUrl) {
-      image = res.imageDataUrl
-      // Crop ảnh DSLR cho giống khung preview đang thấy (WYSIWYG)
-      image = await cropDslrToMatchPreview(image)
+    const api = (window as any).electronAPI
+    if (api?.camera?.canonEdsdk) {
+      const st = await api.camera.canonEdsdk.status().catch(() => null)
+      if (st?.ok && st?.result?.connected) {
+        console.log('[camera] Canon EDSDK connected — capture via sidecar')
+        let timedOut = false
+        const res = await Promise.race([
+          api.camera.canonEdsdk.captureDataUrl(true, 15000),
+          wait(16000).then(() => { timedOut = true; return null }),
+        ])
+        if (timedOut) console.warn('[camera] Canon EDSDK capture timeout, fallback')
+        if (res && res.ok && res.imageDataUrl) {
+          image = res.imageDataUrl
+          image = await cropDslrToMatchPreview(image)
+        } else if (res && !res.ok) {
+          console.warn('[camera] Canon EDSDK capture failed:', res.message, 'eds=', res.eds)
+        }
+      }
     }
   } catch (e) {
-    console.warn('[camera] DSLR capture error:', e)
+    console.warn('[camera] Canon EDSDK capture error:', e)
+  }
+
+  // Ưu tiên 2: digiCamControl (HTTP/CLI) — cần digiCamControl đang chạy.
+  if (!image) {
+    try {
+      let timedOut = false
+      const res = await Promise.race([
+        window.electronAPI.camera.capture(),
+        wait(15000).then(() => { timedOut = true; return null }),
+      ])
+      if (timedOut) console.warn('[camera] DSLR capture timeout, fallback webcam')
+      if (res && res.ok && res.imageDataUrl) {
+        image = res.imageDataUrl
+        image = await cropDslrToMatchPreview(image)
+      }
+    } catch (e) {
+      console.warn('[camera] DSLR capture error:', e)
+    }
   }
 
   // Fallback: bắt frame từ webcam/HDMI (dùng khi không có DSLR SDK)
@@ -627,10 +820,23 @@ async function captureImage(replaceIndex = -1): Promise<boolean> {
   if (eventId) window.electronAPI.saveEventPhoto(image, eventId).catch(() => {})
 
   return true
+  } finally {
+    if (canonWasActive) await startCanonLiveView(wasCanonDisplay)
+  }
 }
 
 function fadeBackToLive(): void {
   isReviewing.value = false
+  if (useCanonLiveView.value) {
+    const capturedPreview = capturedPreviewRef.value
+    if (capturedPreview) {
+      capturedPreview.style.opacity = '0'
+      setTimeout(() => {
+        capturedPreview.style.display = 'none'
+      }, 300)
+    }
+    return
+  }
   const video = videoRef.value
   const capturedPreview = capturedPreviewRef.value
   if (!video || !capturedPreview) return
@@ -783,14 +989,26 @@ function goBack(): void {
   flowStore.back('camera')
 }
 
-onMounted(() => {
-  void startCamera()
+onMounted(async () => {
+  const api = (window as any).electronAPI
+  let connected = false
+  try {
+    const st = await api?.camera?.canonEdsdk?.status?.()
+    connected = !!(st?.ok && st?.result?.connected)
+  } catch {
+    connected = false
+  }
+  canonConnected.value = connected
+  const hdmiDevice = await loadVideoDevices().catch(() => null)
+  selectedVideoSource.value = hdmiDevice || ''
+  await applyPreviewSource(selectedVideoSource.value || null)
   window.addEventListener('resize', updateScrollNav)
   previewRef.value?.addEventListener('scroll', updateScrollNav, { passive: true })
   void nextTick(() => updateScrollNav())
 })
 
 onBeforeUnmount(() => {
+  stopCanonLiveView()
   stopCamera()
   window.removeEventListener('resize', updateScrollNav)
   previewRef.value?.removeEventListener('scroll', updateScrollNav)
@@ -898,7 +1116,22 @@ onBeforeUnmount(() => {
     </header>
     <div class="camera-stage">
       <div class="camera-screen">
-        <video id="video" ref="videoRef" autoplay playsinline muted></video>
+        <div class="preview-source-picker">
+          <select v-model="selectedVideoSource" @change="onPreviewSourceChange">
+            <option value="">Canon live view / webcam</option>
+            <option v-for="d in videoDevices" :key="d.deviceId" :value="d.deviceId">
+              {{ d.label || d.deviceId }}
+            </option>
+          </select>
+        </div>
+        <img
+  v-if="useCanonLiveView"
+  id="video"
+  ref="canonPreviewRef"
+  alt=""
+  style="width: 100%; height: 100%; object-fit: cover; display: block; transition: none;"
+/>
+<video v-else id="video" ref="videoRef" autoplay playsinline muted></video>
         <span class="vf-corner vf-tl" aria-hidden="true"></span>
         <span class="vf-corner vf-tr" aria-hidden="true"></span>
         <span class="vf-corner vf-bl" aria-hidden="true"></span>
@@ -1254,6 +1487,21 @@ onBeforeUnmount(() => {
 .btn-page-cam .icon svg {
   width: 4.6vh;
   height: 4.6vh;
+}
+.preview-source-picker {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 40;
+}
+.preview-source-picker select {
+  max-width: 260px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 12px;
 }
 #idol-shot-overlay {
   position: absolute;

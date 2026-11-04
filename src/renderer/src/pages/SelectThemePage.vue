@@ -1221,11 +1221,15 @@ async function doPrint(existingDataUrl?: string): Promise<void> {
     document.body.appendChild(loaderOverlay)
     const rotated = await rotateDataUrl(dataUrlWithQR)
     const copies = flowStore.flow.selectTheme.copies()
-    const printType = isTwoBySix ? '2x6' : (selectionStore.type || '4x6')
-    // Tên máy in theo khổ, ưu tiên: máy của category (luồng store) -> setting server -> rỗng (báo lỗi)
+    // Khổ quyết định theo tỉ lệ theme (isTwoBySix) — KHÔNG dùng selectionStore.type rếch:
+    // type cũ từ lần chọn category làm 4x6 vào nhầm queue 2x6 -> giấy bị cắt đôi
+    const printType = isTwoBySix ? '2x6' : '4x6'
+    // Tên máy in ưu tiên: setting server theo khổ (printer_26/printer_46)
+    // -> máy của category (chỉ luồng store) -> rỗng (báo lỗi). printName rếch trong
+    // pb_selection không được thắng setting mới của booth.
     const cfg = configStore.config || {}
     const cfgPrinter = printType === '2x6' ? cfg.printer_26 : cfg.printer_46
-    const printName = selectionStore.printName || String(cfgPrinter || '')
+    const printName = String(cfgPrinter || selectionStore.printName || '')
     console.log('[print] printer:', printName, 'type:', printType)
     console.log('[print] cfg printers:', JSON.stringify({ p26: cfg.printer_26 ?? null, p46: cfg.printer_46 ?? null }))
     // TEST-ONLY (dev): localStorage.skipPrint === '1' → bỏ qua in giấy, vẫn đi tiếp finish.
