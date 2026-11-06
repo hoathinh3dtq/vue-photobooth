@@ -1,5 +1,6 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
+import { login, saveSession } from './lib/api/auth'
 import './styles/global.css'
 import './styles/v1/main.css'
 import './styles/v1/home.css'
@@ -48,4 +49,18 @@ function fmtArgs(args: unknown[]): string {
   }
 }
 
-createApp(App).use(createPinia()).use(router).mount('#app')
+// Tự động đăng nhập nếu chưa có session, để ẩn màn hình login trên mọi máy
+// (code login vẫn giữ nguyên, chỉ bỏ qua khi đã có token).
+async function boot(): Promise<void> {
+  if (!localStorage.getItem('auth_token')) {
+    try {
+      const res = await login('admin@photobooth.com', '123456', 'LOCAL001')
+      saveSession(res)
+    } catch (e) {
+      console.error('auto-login failed', e)
+    }
+  }
+  createApp(App).use(createPinia()).use(router).mount('#app')
+}
+
+void boot()

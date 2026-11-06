@@ -47,11 +47,7 @@ const router = createRouter({
       name: 'idol-theme',
       component: () => import('../pages/IdolThemePage.vue'),
     },
-    {
-      path: '/finish',
-      name: 'finish',
-      component: () => import('../pages/FinishPage.vue'),
-    },
+
   ],
 })
 

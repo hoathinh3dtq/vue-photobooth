@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿﻿﻿<script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import FlowerLoader from '../components/FlowerLoader.vue'
 import { useConfigStore } from '../stores/config'
@@ -78,12 +78,12 @@ const TONE_FILTERS: Record<string, string> = {
 
 const samplePhotoUrl = computed(() => selectionStore.capturedPhotos[0]?.image || '')
 
-// IDOL-MODE: theme đã chốt từ màn idol, dựng thẳng không list lại
+// IDOL-MODE: theme Ã„â€˜ÃƒÂ£ chÃ¡Â»â€˜t tÃ¡Â»Â« mÃƒÂ n idol, dÃ¡Â»Â±ng thÃ¡ÂºÂ³ng khÃƒÂ´ng list lÃ¡ÂºÂ¡i
 const isIdolPreselected = computed(
   () => selectionStore.typeIdol === 1 && !!selectionStore.selectedTheme && !!selectionStore.idolFrameUrl,
 )
 
-// Đồng bộ tone lên body như v1 (CSS biến --photo-tone-filter đọc theo body[data-photo-tone])
+// Ã„ÂÃ¡Â»â€œng bÃ¡Â»â„¢ tone lÃƒÂªn body nhÃ†Â° v1 (CSS biÃ¡ÂºÂ¿n --photo-tone-filter Ã„â€˜Ã¡Â»Âc theo body[data-photo-tone])
 watch(
   () => selectionStore.selectedTone,
   (tone) => {
@@ -179,7 +179,7 @@ function scrollThemeChoices(direction: number): void {
 }
 
 function selectTheme(themeId: string): void {
-  // Spam click trùng theme: bỏ qua hẳn, khỏi dựng lại preview mỗi click
+  // Spam click trÃƒÂ¹ng theme: bÃ¡Â»Â qua hÃ¡ÂºÂ³n, khÃ¡Â»Âi dÃ¡Â»Â±ng lÃ¡ÂºÂ¡i preview mÃ¡Â»â€”i click
   if (selectedTheme.value === themeId) return
   selectedTheme.value = themeId
   selectionStore.selectedTheme = themeId
@@ -245,8 +245,8 @@ function detectSlots(src: string): Promise<{ ratio: string; slots: Slot[]; proce
     img.onload = () => {
       const iw = img.naturalWidth
       const ih = img.naturalHeight
-      // Giới hạn mặt ảnh phân tích (~2.6M px): flood fill dò khe tốn ~50-100 bytes/px,
-      // chặn cap này để spam click hàng loạt theme không blow RAM/blend crash.
+      // GiÃ¡Â»â€ºi hÃ¡ÂºÂ¡n mÃ¡ÂºÂ·t Ã¡ÂºÂ£nh phÃƒÂ¢n tÃƒÂ­ch (~2.6M px): flood fill dÃƒÂ² khe tÃ¡Â»â€˜n ~50-100 bytes/px,
+      // chÃ¡ÂºÂ·n cap nÃƒÂ y Ã„â€˜Ã¡Â»Æ’ spam click hÃƒÂ ng loÃ¡ÂºÂ¡t theme khÃƒÂ´ng blow RAM/blend crash.
       const MAX_ANALYSIS_PIXELS = 2600000
       const down = iw * ih > MAX_ANALYSIS_PIXELS ? Math.sqrt(MAX_ANALYSIS_PIXELS / (iw * ih)) : 1
       const aw = Math.max(1, Math.round(iw * down))
@@ -265,7 +265,7 @@ function detectSlots(src: string): Promise<{ ratio: string; slots: Slot[]; proce
       try {
         imageData = ctx.getImageData(0, 0, aw, ah)
       } catch {
-        // Canvas bị taint (CORS): cache kết quả rỗng, tránh dò lại vô hạn gây crash renderer
+        // Canvas bÃ¡Â»â€¹ taint (CORS): cache kÃ¡ÂºÂ¿t quÃ¡ÂºÂ£ rÃ¡Â»â€”ng, trÃƒÂ¡nh dÃƒÂ² lÃ¡ÂºÂ¡i vÃƒÂ´ hÃ¡ÂºÂ¡n gÃƒÂ¢y crash renderer
         slotCache[src] = { ratio: `${iw} / ${ih}`, slots: [], processedSrc: img.src }
         resolve(slotCache[src])
         return
@@ -376,7 +376,7 @@ function detectSlots(src: string): Promise<{ ratio: string; slots: Slot[]; proce
 
       let processedSrc = src
       if (!usedTransparent && transparentIndices.length > 0) {
-        // Carve alpha trên cùng canvas phân tích (đồng bộ toạ độ, đã giới hạn kích thước)
+        // Carve alpha trÃƒÂªn cÃƒÂ¹ng canvas phÃƒÂ¢n tÃƒÂ­ch (Ã„â€˜Ã¡Â»â€œng bÃ¡Â»â„¢ toÃ¡ÂºÂ¡ Ã„â€˜Ã¡Â»â„¢, Ã„â€˜ÃƒÂ£ giÃ¡Â»â€ºi hÃ¡ÂºÂ¡n kÃƒÂ­ch thÃ†Â°Ã¡Â»â€ºc)
         const pCanvas = document.createElement('canvas')
         pCanvas.width = aw
         pCanvas.height = ah
@@ -400,6 +400,22 @@ function detectSlots(src: string): Promise<{ ratio: string; slots: Slot[]; proce
   })
 }
 
+function redetectSlots(): void {
+  const theme = selectedTheme.value ? themes[selectedTheme.value] : null
+  if (!theme?.src) return
+  delete slotCache[theme.src]
+  void detectSlots(theme.src).then((result) => {
+    theme.ratio = result.ratio
+    theme.slots = result.slots
+    theme.processedSrc = result.processedSrc
+    if (theme.totalImage > 0 && theme.slots.length > theme.totalImage) {
+      theme.slots = mergeOverlappingSlots(theme.slots, theme.totalImage)
+    }
+    renderThemePreview()
+    renderCapturedPhotos()
+  })
+}
+
 function renderThemePreview(): void {
   const stage = document.getElementById('theme-preview-stage')
   if (!stage) return
@@ -414,9 +430,9 @@ function renderThemePreview(): void {
   if (!theme) return
 
   if (!theme.slots || theme.slots.length === 0) {
-    // Detect xong (ratio != '') mà vẫn 0 khe → render khung phẳng, KHÔNG dò lại:
-    // vòng "Đang tải... -> detect -> rỗng -> Đang tải..." tạo microtask vô tận
-    // khiến app treo/crash khi spam chọn theme (ảnh taint CORS hoặc không có khe).
+    // Detect xong (ratio != '') mÃƒÂ  vÃ¡ÂºÂ«n 0 khe Ã¢â€ â€™ render khung phÃ¡ÂºÂ³ng, KHÃƒâ€NG dÃƒÂ² lÃ¡ÂºÂ¡i:
+    // vÃƒÂ²ng "Ã„Âang tÃ¡ÂºÂ£i... -> detect -> rÃ¡Â»â€”ng -> Ã„Âang tÃ¡ÂºÂ£i..." tÃ¡ÂºÂ¡o microtask vÃƒÂ´ tÃ¡ÂºÂ­n
+    // khiÃ¡ÂºÂ¿n app treo/crash khi spam chÃ¡Â»Ân theme (Ã¡ÂºÂ£nh taint CORS hoÃ¡ÂºÂ·c khÃƒÂ´ng cÃƒÂ³ khe).
     if (theme.ratio) {
       stage.innerHTML = ''
       stage.className = 'theme-preview-stage'
@@ -428,7 +444,7 @@ function renderThemePreview(): void {
       stage.appendChild(frame)
       return
     }
-    stage.innerHTML = '<p class="theme-preview-loading">Đang tải...</p>'
+    stage.innerHTML = '<p class="theme-preview-loading">Ã„Âang tÃ¡ÂºÂ£i...</p>'
     stage.className = 'theme-preview-stage is-empty'
     void detectSlots(theme.src).then((result) => {
       theme.ratio = result.ratio
@@ -924,7 +940,7 @@ function renderToCanvas(
 
   ctx.drawImage(frameImg, 0, 0, iw, ih)
 
-  // IDOL-MODE: vẽ icon idol vào từng ô (contain, cao 90%, neo đáy, side theo từng icon)
+  // IDOL-MODE: vÃ¡ÂºÂ½ icon idol vÃƒÂ o tÃ¡Â»Â«ng ÃƒÂ´ (contain, cao 90%, neo Ã„â€˜ÃƒÂ¡y, side theo tÃ¡Â»Â«ng icon)
   if (idolDraws.length > 0) {
     for (let index = 0; index < slots.length; index++) {
       const draw = idolDraws[index]
@@ -1090,12 +1106,12 @@ function showPrintPreview(dataUrl: string): Promise<boolean> {
     overlay.className = 'print-preview-overlay'
     overlay.innerHTML = `
       <div class="print-preview-box">
-        <h2>Xem trước ảnh in</h2>
+        <h2>Xem trÃ†Â°Ã¡Â»â€ºc Ã¡ÂºÂ£nh in</h2>
         <div class="print-preview-wrapper">
           <img src="${dataUrl}" alt="Preview" />
         </div>
         <div class="print-preview-actions">
-          <button class="print-preview-cancel" id="print-preview-cancel">Hủy</button>
+          <button class="print-preview-cancel" id="print-preview-cancel">HÃ¡Â»Â§y</button>
           <button class="print-preview-print" id="print-preview-print">${label}</button>
         </div>
       </div>`
@@ -1160,17 +1176,17 @@ function showPrintError(raw: string): void {
   const err = colonIdx > 0 ? raw.substring(0, colonIdx) : raw
   const detail = colonIdx > 0 ? raw.substring(colonIdx + 1) : ''
   const msgs: Record<string, string> = {
-    PRINTER_OFFLINE: 'Máy in đang offline. Bỏ chọn "Use Printer Offline" trong Windows và kiểm tra cáp kết nối.',
-    PRINTER_NOT_FOUND: 'Không tìm thấy máy in. Kiểm tra tên máy in trong cài đặt.',
-    PRINTER_CHECK_FAIL: `Không kiểm tra được máy in: ${detail}.`,
-    PRINT_TIMEOUT: 'In quá 30-40s không phản hồi (driver bận?). Kiểm tra giấy/mực/máy in rồi thử in lại ở màn Finish.',
-    PRINT_EMPTY_RESPONSE: 'Máy in không trả về kết quả. Kiểm tra máy in và thử lại.',
-    PRINT_STUCK: 'Job in đã gửi vào spooler nhưng máy in không xử lý. Kiểm tra giấy/mực/tình trạng máy in.',
-    PRINT_FAIL: `Lỗi máy in: ${detail}. Kiểm tra máy in và thử lại.`,
-    TEMP_IMAGE_WRITE_FAIL: 'Không thể tạo file ảnh tạm thời.',
-    POWERSHELL_EXEC_FAIL: `Lỗi thực thi lệnh in: ${detail}`,
+    PRINTER_OFFLINE: 'MÃƒÂ¡y in Ã„â€˜ang offline. BÃ¡Â»Â chÃ¡Â»Ân "Use Printer Offline" trong Windows vÃƒÂ  kiÃ¡Â»Æ’m tra cÃƒÂ¡p kÃ¡ÂºÂ¿t nÃ¡Â»â€˜i.',
+    PRINTER_NOT_FOUND: 'KhÃƒÂ´ng tÃƒÂ¬m thÃ¡ÂºÂ¥y mÃƒÂ¡y in. KiÃ¡Â»Æ’m tra tÃƒÂªn mÃƒÂ¡y in trong cÃƒÂ i Ã„â€˜Ã¡ÂºÂ·t.',
+    PRINTER_CHECK_FAIL: `KhÃƒÂ´ng kiÃ¡Â»Æ’m tra Ã„â€˜Ã†Â°Ã¡Â»Â£c mÃƒÂ¡y in: ${detail}.`,
+    PRINT_TIMEOUT: 'In quÃƒÂ¡ 30-40s khÃƒÂ´ng phÃ¡ÂºÂ£n hÃ¡Â»â€œi (driver bÃ¡ÂºÂ­n?). KiÃ¡Â»Æ’m tra giÃ¡ÂºÂ¥y/mÃ¡Â»Â±c/mÃƒÂ¡y in rÃ¡Â»â€œi thÃ¡Â»Â­ in lÃ¡ÂºÂ¡i Ã¡Â»Å¸ mÃƒÂ n Finish.',
+    PRINT_EMPTY_RESPONSE: 'MÃƒÂ¡y in khÃƒÂ´ng trÃ¡ÂºÂ£ vÃ¡Â»Â kÃ¡ÂºÂ¿t quÃ¡ÂºÂ£. KiÃ¡Â»Æ’m tra mÃƒÂ¡y in vÃƒÂ  thÃ¡Â»Â­ lÃ¡ÂºÂ¡i.',
+    PRINT_STUCK: 'Job in Ã„â€˜ÃƒÂ£ gÃ¡Â»Â­i vÃƒÂ o spooler nhÃ†Â°ng mÃƒÂ¡y in khÃƒÂ´ng xÃ¡Â»Â­ lÃƒÂ½. KiÃ¡Â»Æ’m tra giÃ¡ÂºÂ¥y/mÃ¡Â»Â±c/tÃƒÂ¬nh trÃ¡ÂºÂ¡ng mÃƒÂ¡y in.',
+    PRINT_FAIL: `LÃ¡Â»â€”i mÃƒÂ¡y in: ${detail}. KiÃ¡Â»Æ’m tra mÃƒÂ¡y in vÃƒÂ  thÃ¡Â»Â­ lÃ¡ÂºÂ¡i.`,
+    TEMP_IMAGE_WRITE_FAIL: 'KhÃƒÂ´ng thÃ¡Â»Æ’ tÃ¡ÂºÂ¡o file Ã¡ÂºÂ£nh tÃ¡ÂºÂ¡m thÃ¡Â»Âi.',
+    POWERSHELL_EXEC_FAIL: `LÃ¡Â»â€”i thÃ¡Â»Â±c thi lÃ¡Â»â€¡nh in: ${detail}`,
   }
-  showModal(`<p>❌ ${msgs[err] || `In thất bại. Kiểm tra máy in. (${raw})`}</p><button class="modal-ok-btn" id="modal-ok-btn">OK</button>`)
+  showModal(`<p>Ã¢ÂÅ’ ${msgs[err] || `In thÃ¡ÂºÂ¥t bÃ¡ÂºÂ¡i. KiÃ¡Â»Æ’m tra mÃƒÂ¡y in. (${raw})`}</p><button class="modal-ok-btn" id="modal-ok-btn">OK</button>`)
   document.getElementById('modal-ok-btn')!.onclick = hideModal
 }
 
@@ -1185,7 +1201,7 @@ async function doPrint(existingDataUrl?: string): Promise<void> {
 
     let videoBlob = sessionStore.timeLapseBlob
     sessionStore.timeLapseBlob = null
-    // Compile timelapse chạy nền sau goNext; đợi nó xong (tối đa 30s) thay vì bỏ qua
+    // Compile timelapse chÃ¡ÂºÂ¡y nÃ¡Â»Ân sau goNext; Ã„â€˜Ã¡Â»Â£i nÃƒÂ³ xong (tÃ¡Â»â€˜i Ã„â€˜a 30s) thay vÃƒÂ¬ bÃ¡Â»Â qua
     const pendingTask = sessionStore.timeLapseTask
     sessionStore.timeLapseTask = null
     if (!videoBlob && pendingTask) {
@@ -1200,7 +1216,7 @@ async function doPrint(existingDataUrl?: string): Promise<void> {
     }
 
     const qrCode = await flowStore.flow.selectTheme.printSession(sessionId)
-    if (!qrCode) throw new Error('Không lấy được mã QR')
+    if (!qrCode) throw new Error('KhÃƒÂ´ng lÃ¡ÂºÂ¥y Ã„â€˜Ã†Â°Ã¡Â»Â£c mÃƒÂ£ QR')
 
     const pending: PendingUpload = { sessionId, status: 'uploading' }
     sessionStore.pendingUploads.push(pending)
@@ -1217,23 +1233,23 @@ async function doPrint(existingDataUrl?: string): Promise<void> {
 
     const loaderOverlay = document.createElement('div')
     loaderOverlay.className = 'print-loader-overlay'
-    loaderOverlay.innerHTML = '<div class="print-loader-spinner"></div><p class="print-loader-text">Đang in...</p>'
+    loaderOverlay.innerHTML = '<div class="print-loader-spinner"></div><p class="print-loader-text">Ã„Âang in...</p>'
     document.body.appendChild(loaderOverlay)
     const rotated = await rotateDataUrl(dataUrlWithQR)
     const copies = flowStore.flow.selectTheme.copies()
-    // Khổ quyết định theo tỉ lệ theme (isTwoBySix) — KHÔNG dùng selectionStore.type rếch:
-    // type cũ từ lần chọn category làm 4x6 vào nhầm queue 2x6 -> giấy bị cắt đôi
+    // KhÃ¡Â»â€¢ quyÃ¡ÂºÂ¿t Ã„â€˜Ã¡Â»â€¹nh theo tÃ¡Â»â€° lÃ¡Â»â€¡ theme (isTwoBySix) Ã¢â‚¬â€ KHÃƒâ€NG dÃƒÂ¹ng selectionStore.type rÃ¡ÂºÂ¿ch:
+    // type cÃ…Â© tÃ¡Â»Â« lÃ¡ÂºÂ§n chÃ¡Â»Ân category lÃƒÂ m 4x6 vÃƒÂ o nhÃ¡ÂºÂ§m queue 2x6 -> giÃ¡ÂºÂ¥y bÃ¡Â»â€¹ cÃ¡ÂºÂ¯t Ã„â€˜ÃƒÂ´i
     const printType = isTwoBySix ? '2x6' : '4x6'
-    // Tên máy in ưu tiên: setting server theo khổ (printer_26/printer_46)
-    // -> máy của category (chỉ luồng store) -> rỗng (báo lỗi). printName rếch trong
-    // pb_selection không được thắng setting mới của booth.
+    // TÃƒÂªn mÃƒÂ¡y in Ã†Â°u tiÃƒÂªn: setting server theo khÃ¡Â»â€¢ (printer_26/printer_46)
+    // -> mÃƒÂ¡y cÃ¡Â»Â§a category (chÃ¡Â»â€° luÃ¡Â»â€œng store) -> rÃ¡Â»â€”ng (bÃƒÂ¡o lÃ¡Â»â€”i). printName rÃ¡ÂºÂ¿ch trong
+    // pb_selection khÃƒÂ´ng Ã„â€˜Ã†Â°Ã¡Â»Â£c thÃ¡ÂºÂ¯ng setting mÃ¡Â»â€ºi cÃ¡Â»Â§a booth.
     const cfg = configStore.config || {}
     const cfgPrinter = printType === '2x6' ? cfg.printer_26 : cfg.printer_46
     const printName = String(cfgPrinter || selectionStore.printName || '')
     console.log('[print] printer:', printName, 'type:', printType)
     console.log('[print] cfg printers:', JSON.stringify({ p26: cfg.printer_26 ?? null, p46: cfg.printer_46 ?? null }))
-    // TEST-ONLY (dev): localStorage.skipPrint === '1' → bỏ qua in giấy, vẫn đi tiếp finish.
-    // import.meta.env.DEV khiến bypass này chết hẳn ở bản .exe production.
+    // TEST-ONLY (dev): localStorage.skipPrint === '1' Ã¢â€ â€™ bÃ¡Â»Â qua in giÃ¡ÂºÂ¥y, vÃ¡ÂºÂ«n Ã„â€˜i tiÃ¡ÂºÂ¿p finish.
+    // import.meta.env.DEV khiÃ¡ÂºÂ¿n bypass nÃƒÂ y chÃ¡ÂºÂ¿t hÃ¡ÂºÂ³n Ã¡Â»Å¸ bÃ¡ÂºÂ£n .exe production.
     const skipPrint = import.meta.env.DEV && localStorage.getItem('skipPrint') === '1'
     if (!printName && !skipPrint) {
       loaderOverlay.remove()
@@ -1280,7 +1296,7 @@ async function doPrint(existingDataUrl?: string): Promise<void> {
   } catch (e) {
     const loader = document.querySelector('.print-loader-overlay')
     if (loader) loader.remove()
-    showModal(`<p>❌ ${(e as Error).message}</p><button class="modal-ok-btn" id="modal-ok-btn">OK</button>`)
+    showModal(`<p>Ã¢ÂÅ’ ${(e as Error).message}</p><button class="modal-ok-btn" id="modal-ok-btn">OK</button>`)
     document.getElementById('modal-ok-btn')!.onclick = hideModal
   }
 }
@@ -1374,7 +1390,7 @@ onMounted(async () => {
       />
     </svg>
     <section class="neon-panel theme-sidebar">
-      <h2 class="neon-title"><span>✦</span> CHỌN THEME <span>✦</span></h2>
+      <h2 class="neon-title"><span>Ã¢Å“Â¦</span> CHÃ¡Â»Å’N THEME <span>Ã¢Å“Â¦</span></h2>
       <div v-if="!isIdolPreselected" class="theme-choice-strip">
           <button class="theme-nav" id="theme-nav-left" type="button" @click="scrollThemeChoices(-1)">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1383,7 +1399,7 @@ onMounted(async () => {
           </button>
         <div class="theme-choice-list" id="theme-choice-list">
           <FlowerLoader v-if="loading" />
-          <p v-else-if="Object.keys(themes).length === 0" class="hint">Chưa có theme nào</p>
+          <p v-else-if="Object.keys(themes).length === 0" class="hint">ChÃ†Â°a cÃƒÂ³ theme nÃƒÂ o</p>
         </div>
           <button class="theme-nav" id="theme-nav-right" type="button" @click="scrollThemeChoices(1)">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1399,8 +1415,13 @@ onMounted(async () => {
     </div>
 
     <main class="neon-panel theme-preview">
-      <h1 class="neon-title"><span>✦</span> PREVIEW <span>✦</span></h1>
+      <h1 class="neon-title"><span>Ã¢Å“Â¦</span> PREVIEW <span>Ã¢Å“Â¦</span></h1>
       <div class="theme-preview-stage" id="theme-preview-stage"></div>
+      <div class="slot-detect-actions">
+        <button class="btn btn-ghost" type="button" :disabled="!selectedTheme" @click="redetectSlots">
+          Tự động dò lỗ
+        </button>
+      </div>
     </main>
 
     <div class="theme-divider theme-divider-right" aria-hidden="true">
@@ -1409,7 +1430,7 @@ onMounted(async () => {
     </div>
 
     <section class="neon-panel tone-panel">
-      <h2 class="neon-title"><span>✦</span> TONE MÀU <span>✦</span></h2>
+      <h2 class="neon-title"><span>Ã¢Å“Â¦</span> TONE MÃƒâ‚¬U <span>Ã¢Å“Â¦</span></h2>
       <div class="filter-grid">
         <button
           v-for="(filter, name) in TONE_FILTERS"
@@ -1428,7 +1449,7 @@ onMounted(async () => {
     </section>
 
     <section class="neon-panel captured-panel">
-      <h2 class="neon-title"><span>✦</span> DANH SÁCH ẢNH ĐÃ CHỤP <span>✦</span></h2>
+      <h2 class="neon-title"><span>Ã¢Å“Â¦</span> DANH SÃƒÂCH Ã¡ÂºÂ¢NH Ã„ÂÃƒÆ’ CHÃ¡Â»Â¤P <span>Ã¢Å“Â¦</span></h2>
       <div class="theme-captured-strip">
           <button class="preview-nav" id="theme-preview-left" type="button" @click="scrollCapturedPreview(-1)">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1445,7 +1466,7 @@ onMounted(async () => {
     </section>
 
     <button class="neon-panel print-button" type="button" :disabled="!selectedTheme" @click="handlePrintFlow">
-      <span id="print-btn-text">XEM ẢNH</span>
+      <span id="print-btn-text">XEM Ã¡ÂºÂ¢NH</span>
     </button>
   </div>
 </template>
