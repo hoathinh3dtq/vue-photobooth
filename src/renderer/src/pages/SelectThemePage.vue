@@ -163,6 +163,39 @@ async function loadMoreThemes(): Promise<boolean> {
   return entries.length > 0
 }
 
+async function loadCustomFrames(): Promise<void> {
+  try {
+    const token = localStorage.getItem('auth_token') || ''
+    const host = import.meta.env.VITE_API_HOST || 'http://127.0.0.1:8000'
+    const res = await fetch(`${host}/api/frames/all`, { headers: { Authorization: `Bearer ${token}` } })
+    const json = await res.json()
+    const items = json?.data || []
+    const entries: Array<[string, Theme]> = []
+    items.forEach((item: any) => {
+      if (!item || item.is_active === false) return
+      const meta = item.holes_metadata || {}
+      const holes = Array.isArray(meta.holes) ? meta.holes : []
+      const slots = holes.map((h: any) => ({ x: h.x, y: h.y, w: h.w, h: h.h }))
+      const fw = meta.fw || 1
+      const fh = meta.fh || 1
+      const id = `frame-${item.id}`
+      themes[id] = {
+        buttonId: id,
+        src: item.image_path ? `${host}/${String(item.image_path).startsWith('/') ? String(item.image_path).slice(1) : String(item.image_path)}` : '',
+        ratio: `${fw} / ${fh}`,
+        slots: slots.length ? slots : [],
+        processedSrc: '',
+        totalImage: slots.length,
+        savedSlots: slots.length ? slots : null,
+      }
+      entries.push([id, themes[id]])
+    })
+    if (entries.length) renderThemeChoices()
+  } catch (e) {
+    console.warn('[select-theme] loadCustomFrames failed:', e)
+  }
+}
+
 function renderThemeChoices(): void {
   const list = document.getElementById('theme-choice-list')
   if (!list) return
@@ -1392,6 +1425,7 @@ onMounted(async () => {
     return
   }
   await loadMoreThemes()
+  await loadCustomFrames()
   loading.value = false
   renderThemePreview()
   renderCapturedPhotos()
