@@ -26,6 +26,10 @@ function logout(): void {
 function goSettings(): void {
   router.push('/settings')
 }
+
+function goMyFrames(): void {
+  router.push('/my-frames')
+}
 </script>
 
 <template>
@@ -83,6 +87,16 @@ function goSettings(): void {
       style="right: 2.5vw;"
     >
       ⚙
+    </button>
+    <button
+      class="hb-logout"
+      id="myFramesBtn"
+      type="button"
+      aria-label="Frame của tôi"
+      @click="goMyFrames"
+      style="right: 7vw; top: 7vh; font-size: 14px;"
+    >
+      🖼
     </button>
 
 
