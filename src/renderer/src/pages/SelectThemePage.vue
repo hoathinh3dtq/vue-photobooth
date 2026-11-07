@@ -249,8 +249,6 @@ function mergeOverlappingSlots(slots: Slot[], targetCount: number): Slot[] {
 }
 
 function detectSlots(src: string): Promise<{ ratio: string; slots: Slot[]; processedSrc: string }> {
-  if (slotCache[src]) return Promise.resolve(slotCache[src])
-
   return new Promise((resolve) => {
     const img = new Image()
     img.crossOrigin = 'anonymous'
@@ -261,55 +259,110 @@ function detectSlots(src: string): Promise<{ ratio: string; slots: Slot[]; proce
     img.onload = () => {
       const iw = img.naturalWidth
       const ih = img.naturalHeight
-      // GiÃ¡Â»â€ºi hÃ¡ÂºÂ¡n mÃ¡ÂºÂ·t Ã¡ÂºÂ£nh phÃƒÂ¢n tÃƒÂ­ch (~2.6M px): flood fill dÃƒÂ² khe tÃ¡Â»â€˜n ~50-100 bytes/px,
-      // chÃ¡ÂºÂ·n cap nÃƒÂ y Ã„â€˜Ã¡Â»Æ’ spam click hÃƒÂ ng loÃ¡ÂºÂ¡t theme khÃƒÂ´ng blow RAM/blend crash.
-      const MAX_ANALYSIS_PIXELS = 2600000
-      const down = iw * ih > MAX_ANALYSIS_PIXELS ? Math.sqrt(MAX_ANALYSIS_PIXELS / (iw * ih)) : 1
-      const aw = Math.max(1, Math.round(iw * down))
-      const ah = Math.max(1, Math.round(ih * down))
+      const MAX_ANALYSIS = 2600000
+      const r = Math.min(1, 800 / Math.max(iw, ih))
+      const aw = Math.max(1, Math.round(iw * r))
+      const ah = Math.max(1, Math.round(ih * r))
       const canvas = document.createElement('canvas')
       canvas.width = aw
       canvas.height = ah
-      const ctx = canvas.getContext('2d')
+      const ctx = canvas.getContext('2d', { willReadFrequently: true })
       if (!ctx) {
-        slotCache[src] = { ratio: '1 / 1', slots: [], processedSrc: src }
+        slotCache[src] = { ratio: `${iw} / ${ih}`, slots: [], processedSrc: src }
         resolve(slotCache[src])
         return
       }
+      ctx.clearRect(0, 0, aw, ah)
       ctx.drawImage(img, 0, 0, aw, ah)
       let imageData: ImageData
-      try {
-        imageData = ctx.getImageData(0, 0, aw, ah)
-      } catch {
-        // Canvas bÃ¡Â»â€¹ taint (CORS): cache kÃ¡ÂºÂ¿t quÃ¡ÂºÂ£ rÃ¡Â»â€”ng, trÃƒÂ¡nh dÃƒÂ² lÃ¡ÂºÂ¡i vÃƒÂ´ hÃ¡ÂºÂ¡n gÃƒÂ¢y crash renderer
+      try { imageData = ctx.getImageData(0, 0, aw, ah) }
+      catch {
         slotCache[src] = { ratio: `${iw} / ${ih}`, slots: [], processedSrc: img.src }
         resolve(slotCache[src])
         return
       }
       const pixels = imageData.data
+      const total = aw * ah
 
-      function floodFill(transparentMode: boolean) {
-        const visited = new Uint8Array(aw * ah)
-        const regions: Array<{ minX: number; maxX: number; minY: number; maxY: number; w: number; h: number; pixels: number[] }> = []
+      // alpha mask (transparent = hole)
+      const alpha = new Uint8Array(total)
+      for (let t = 0; t < total; t++) alpha[t] = pixels[t * 4 + 3] < 30 ? 1 : 0
+
+      // union-find components of transparent pixels
+      const uf = new Int32Array(total).fill(-1)
+      function ufFind(t: number): number {
+        let root = t
+        while (uf[root] >= 0) root = uf[root]
+        while (uf[t] >= 0) { const nt = uf[t]; uf[t] = root; t = nt }
+        return root
+      }
+      function ufUnion(a: number, b: number) {
+        a = ufFind(a); b = ufFind(b)
+        if (a === b) return
+        if (uf[a] > uf[b]) { const tmp = a; a = b; b = tmp }
+        uf[a] += uf[b]
+        uf[b] = a
+      }
+
+      const compId = new Int32Array(total).fill(-1)
+      let compCount = 0
+      for (let y = 0; y < ah; y++) {
+        for (let x = 0; x < aw; x++) {
+          const idx = y * aw + x
+          if (!alpha[idx]) continue
+          const up = y > 0 ? compId[(y - 1) * aw + x] : -1
+          const left = x > 0 ? compId[y * aw + (x - 1)] : -1
+          if (up === -1 && left === -1) { compId[idx] = compCount++ }
+          else if (up !== -1 && left === -1) compId[idx] = up
+          else if (up === -1 && left !== -1) compId[idx] = left
+          else { compId[idx] = Math.min(up, left); ufUnion(up, left) }
+        }
+      }
+
+      const compMap = new Map<number, { minX: number; minY: number; maxX: number; maxY: number; count: number }>()
+      for (let y = 0; y < ah; y++) {
+        for (let x = 0; x < aw; x++) {
+          const idx = y * aw + x
+          if (!alpha[idx]) continue
+          const root = ufFind(compId[idx])
+          if (!compMap.has(root)) compMap.set(root, { minX: x, minY: y, maxX: x, maxY: y, count: 1 })
+          else {
+            const c = compMap.get(root)!
+            c.minX = Math.min(c.minX, x); c.minY = Math.min(c.minY, y)
+            c.maxX = Math.max(c.maxX, x); c.maxY = Math.max(c.maxY, y)
+            c.count++
+          }
+        }
+      }
+
+      const minPixels = total * 0.005
+      const M = 1 / r
+      const pad = Math.ceil(M)
+      let holes: Slot[] = []
+      for (const [, c] of compMap) {
+        if (c.count < minPixels) continue
+        if (c.minX === 0 || c.minY === 0 || c.maxX === aw - 1 || c.maxY === ah - 1) continue
+        const x = Math.max(0, Math.round(c.minX * M) - pad)
+        const y = Math.max(0, Math.round(c.minY * M) - pad)
+        const w = Math.round((c.maxX + 1) * M) + pad - x
+        const h = Math.round((c.maxY + 1) * M) + pad - y
+        holes.push({ x: (x / iw) * 100, y: (y / ih) * 100, w: (w / iw) * 100, h: (h / ih) * 100 })
+      }
+      holes.sort((a, b) => a.y - b.y || a.x - b.x)
+
+      // dark-slot fallback if no transparent holes found
+      if (holes.length === 0) {
+        const visited = new Uint8Array(total)
+        const darkRegions: Array<{ minX: number; maxX: number; minY: number; maxY: number }> = []
         for (let y = 0; y < ah; y++) {
           for (let x = 0; x < aw; x++) {
             const idx = y * aw + x
             if (visited[idx]) continue
             const pi = idx * 4
-            const a = pixels[pi + 3]
-            const r = pixels[pi]
-            const g = pixels[pi + 1]
-            const b = pixels[pi + 2]
-            const isSlot = transparentMode ? a < 30 : a > 240 && r < 34 && g < 34 && b < 34
-            if (!isSlot) continue
-
-            const regionPixels: number[] = []
+            const a = pixels[pi + 3], rr = pixels[pi], g = pixels[pi + 1], b = pixels[pi + 2]
+            if (!(a > 240 && rr < 34 && g < 34 && b < 34)) continue
             const stack = [x, y]
-            let minX = x
-            let maxX = x
-            let minY = y
-            let maxY = y
-
+            let minX = x, maxX = x, minY = y, maxY = y, cnt = 0
             while (stack.length) {
               const cy = stack.pop() as number
               const cx = stack.pop() as number
@@ -317,104 +370,41 @@ function detectSlots(src: string): Promise<{ ratio: string; slots: Slot[]; proce
               if (visited[ci]) continue
               visited[ci] = 1
               const cpi = ci * 4
-              const ca = pixels[cpi + 3]
-              const cr = pixels[cpi]
-              const cg = pixels[cpi + 1]
-              const cb = pixels[cpi + 2]
-              const matches = transparentMode ? ca < 30 : ca > 240 && cr < 34 && cg < 34 && cb < 34
-              if (!matches) continue
-              regionPixels.push(cx, cy)
-              if (cx < minX) minX = cx
-              if (cx > maxX) maxX = cx
-              if (cy < minY) minY = cy
-              if (cy > maxY) maxY = cy
+              const ca = pixels[cpi + 3], cr = pixels[cpi], cg = pixels[cpi + 1], cb = pixels[cpi + 2]
+              if (!(ca > 240 && cr < 34 && cg < 34 && cb < 34)) continue
+              cnt++
+              if (cx < minX) minX = cx; if (cx > maxX) maxX = cx
+              if (cy < minY) minY = cy; if (cy > maxY) maxY = cy
               if (cx > 0) stack.push(cx - 1, cy)
               if (cx < aw - 1) stack.push(cx + 1, cy)
               if (cy > 0) stack.push(cx, cy - 1)
               if (cy < ah - 1) stack.push(cx, cy + 1)
             }
-
-            if (regionPixels.length > 100) {
-              regions.push({
-                minX,
-                maxX,
-                minY,
-                maxY,
-                w: maxX - minX + 1,
-                h: maxY - minY + 1,
-                pixels: regionPixels,
-              })
-            }
+            if (cnt > 100) darkRegions.push({ minX, maxX, minY, maxY })
           }
         }
-        return regions
-      }
-
-      function extractSlots(regions: ReturnType<typeof floodFill>, isTransparentMode: boolean) {
-        const ti: number[] = []
-        const s = regions
-          .filter((r) => {
-            const keep = r.w > 20 && r.h > 20 && (r.w > aw * 0.05 || r.h > ah * 0.05) && !(r.w > aw * 0.8 && r.h > ah * 0.8)
-            if (keep && !isTransparentMode) {
-              for (let i = 0; i < r.pixels.length; i += 2) {
-                ti.push(r.pixels[i + 1] * aw + r.pixels[i])
-              }
-            }
-            return keep
-          })
+        holes = darkRegions
+          .filter(r => r.maxX - r.minX > 20 && r.maxY - r.minY > 20)
           .sort((a, b) => a.minY - b.minY || a.minX - b.minX)
-          .map((r) => ({
+          .map(r => ({
             x: (r.minX / aw) * 100,
             y: (r.minY / ah) * 100,
-            w: (r.w / aw) * 100,
-            h: (r.h / ah) * 100,
+            w: ((r.maxX - r.minX + 1) / aw) * 100,
+            h: ((r.maxY - r.minY + 1) / ah) * 100,
           }))
-        return { slots: s, indices: ti }
       }
 
-      const hasTransparent = (() => {
-        for (let i = 0; i < aw * ah; i++) {
-          if (pixels[i * 4 + 3] < 30) return true
-        }
-        return false
-      })()
-
-      const transRegions = floodFill(hasTransparent)
-      let result = extractSlots(transRegions, hasTransparent)
-      let usedTransparent = hasTransparent
-      if (result.slots.length === 0) {
-        result = extractSlots(floodFill(!hasTransparent), !hasTransparent)
-        usedTransparent = !hasTransparent
-      }
-
-      const { slots, indices: transparentIndices } = result
-      const ratio = `${iw} / ${ih}`
-
+      // processedSrc: carve alpha if not transparent mode (dark fallback) - skip carving for transparent (already transparent)
       let processedSrc = src
-      if (!usedTransparent && transparentIndices.length > 0) {
-        // Carve alpha trÃƒÂªn cÃƒÂ¹ng canvas phÃƒÂ¢n tÃƒÂ­ch (Ã„â€˜Ã¡Â»â€œng bÃ¡Â»â„¢ toÃ¡ÂºÂ¡ Ã„â€˜Ã¡Â»â„¢, Ã„â€˜ÃƒÂ£ giÃ¡Â»â€ºi hÃ¡ÂºÂ¡n kÃƒÂ­ch thÃ†Â°Ã¡Â»â€ºc)
-        const pCanvas = document.createElement('canvas')
-        pCanvas.width = aw
-        pCanvas.height = ah
-        const pCtx = pCanvas.getContext('2d')
-        if (pCtx) {
-          pCtx.drawImage(img, 0, 0, aw, ah)
-          const pData = pCtx.getImageData(0, 0, aw, ah)
-          const pp = pData.data
-          for (const idx of transparentIndices) {
-            pp[idx * 4 + 3] = 0
-          }
-          pCtx.putImageData(pData, 0, 0)
-          processedSrc = pCanvas.toDataURL()
-        }
-      }
+      // (keep simple: use original src as frame; alpha already in image)
 
-      slotCache[src] = { ratio, slots, processedSrc }
-      resolve({ ratio, slots, processedSrc })
+      slotCache[src] = { ratio: `${iw} / ${ih}`, slots: holes, processedSrc }
+      resolve({ ratio: `${iw} / ${ih}`, slots: holes, processedSrc })
     }
     img.src = src
   })
 }
+
 
 function redetectSlots(): void {
   const theme = selectedTheme.value ? themes[selectedTheme.value] : null
