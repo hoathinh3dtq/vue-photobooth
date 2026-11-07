@@ -11,6 +11,7 @@ const offsetY = ref(0)
 const paperLoaded = ref(400)
 const paperRemaining = ref(400)
 const warningThreshold = ref(50)
+const allowCancelOnPreview = ref(true)
 const status = ref('')
 const loading = ref(false)
 
@@ -27,6 +28,7 @@ async function load() {
       paperLoaded.value = s.paperLoaded ?? 400
       paperRemaining.value = s.paperRemaining ?? 400
       warningThreshold.value = s.warningThreshold ?? 50
+      allowCancelOnPreview.value = s.allowCancelOnPreview ?? true
     }
     const res = await api?.printer?.list?.()
     if (res?.ok) printers.value = res.printers || []
@@ -48,6 +50,7 @@ async function save() {
       paperLoaded: paperLoaded.value,
       paperRemaining: paperRemaining.value,
       warningThreshold: warningThreshold.value,
+      allowCancelOnPreview: allowCancelOnPreview.value,
     })
     status.value = 'Đã lưu settings.'
   } catch (e) {
@@ -117,6 +120,9 @@ onMounted(() => { void load() })
       </div>
     </div>
 
+    <div style="margin:1vw 0;">
+      <label><input type="checkbox" v-model="allowCancelOnPreview" /> Cho phép hủy ở preview in</label>
+    </div>
     <p v-if="paperRemaining <= warningThreshold" style="color:#b45309; font-weight:700;">⚠ Sắp hết giấy!</p>
 
     <button @click="save" :disabled="loading" style="margin-top:1vw; padding:8px 16px;">Lưu cài đặt</button>

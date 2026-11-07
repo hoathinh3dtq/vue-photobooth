@@ -10,6 +10,7 @@ export interface AppSettings {
   paperLoaded: number
   paperRemaining: number
   warningThreshold: number
+  allowCancelOnPreview: boolean
 }
 
 const DEFAULTS: AppSettings = {
@@ -20,6 +21,7 @@ const DEFAULTS: AppSettings = {
   paperLoaded: 400,
   paperRemaining: 400,
   warningThreshold: 50,
+  allowCancelOnPreview: true,
 }
 
 let state: AppSettings = { ...DEFAULTS }

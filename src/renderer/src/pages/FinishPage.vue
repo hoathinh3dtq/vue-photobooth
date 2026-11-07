@@ -142,6 +142,13 @@ async function printCopies(count: number): Promise<boolean> {
     }
     if (i < count - 1) await new Promise((r) => setTimeout(r, 2000))
   }
+  try {
+    const s = await (window as any).electronAPI?.settings?.get?.()
+    if (s) {
+      const remaining = Math.max(0, (s.paperRemaining ?? 0) - count)
+      await (window as any).electronAPI?.settings?.save?.({ paperRemaining: remaining })
+    }
+  } catch { /* ignore */ }
   showModal(`<p>In thêm thành công! (${count} tấm)</p><button class="modal-ok-btn" id="modal-ok-btn">OK</button>`)
   document.getElementById('modal-ok-btn')!.onclick = hideModal
   return true

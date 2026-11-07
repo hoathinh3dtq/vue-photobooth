@@ -73,7 +73,16 @@ ipcMain.handle('camera:canon-edsdk-import-recent', (_e, opts: { dir: string; cou
   canonEdsdk.canonImportRecent(opts.dir, opts?.count ?? 1),
 )
 
+// Print queue (serialize jobs) — ported from HihiBooth printQueue.js
+let printTail: Promise<unknown> = Promise.resolve()
+function enqueuePrint(job: () => Promise<unknown>): Promise<unknown> {
+  const run = printTail.then(job, job)
+  printTail = run.catch((e) => { console.warn('[print:queue] job failed:', (e as Error)?.message) })
+  return run
+}
+
 ipcMain.handle('print-image', async (_event, dataUrl: string, opts: { type?: string; printName?: string; zoom?: number; offsetX?: number; offsetY?: number } = {}) => {
+  return enqueuePrint(async () => {
   const targetPrinter = opts?.printName ?? ''
   if (!targetPrinter) return { ok: false, error: 'PRINTER_NOT_FOUND' }
   const settings = getSettings()
@@ -222,6 +231,7 @@ Write-Output 'PRINT_OK'
       }
     } catch {}
   }
+  })
 })
 
 ipcMain.handle('settings:get', () => getSettings())

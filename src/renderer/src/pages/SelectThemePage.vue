@@ -1132,7 +1132,12 @@ function rotateDataUrl(dataUrl: string): Promise<string> {
   })
 }
 
-function showPrintPreview(dataUrl: string): Promise<boolean> {
+async function showPrintPreview(dataUrl: string): Promise<boolean> {
+  let allowCancel = true
+  try {
+    const s = await (window as any).electronAPI?.settings?.get?.()
+    allowCancel = s?.allowCancelOnPreview ?? true
+  } catch { /* ignore */ }
   return new Promise((resolve) => {
     const label = flowStore.flow.selectTheme.previewLabel()
     const overlay = document.createElement('div')
@@ -1144,15 +1149,13 @@ function showPrintPreview(dataUrl: string): Promise<boolean> {
           <img src="${dataUrl}" alt="Preview" />
         </div>
         <div class="print-preview-actions">
-          <button class="print-preview-cancel" id="print-preview-cancel">HÃ¡Â»Â§y</button>
+          ${allowCancel ? '<button class="print-preview-cancel" id="print-preview-cancel">Hủy</button>' : ''}
           <button class="print-preview-print" id="print-preview-print">${label}</button>
         </div>
       </div>`
     document.body.appendChild(overlay)
-    overlay.querySelector<HTMLButtonElement>('#print-preview-cancel')!.onclick = () => {
-      overlay.remove()
-      resolve(false)
-    }
+    const cancelBtn = overlay.querySelector<HTMLButtonElement>('#print-preview-cancel')
+    if (cancelBtn) cancelBtn.onclick = () => { overlay.remove(); resolve(false) }
     overlay.querySelector<HTMLButtonElement>('#print-preview-print')!.onclick = () => {
       overlay.remove()
       resolve(true)
@@ -1317,6 +1320,15 @@ async function doPrint(existingDataUrl?: string): Promise<void> {
       showPrintError((lastError.error || ''))
       return
     }
+
+    // Paper counter auto-decrement
+    try {
+      const s = await (window as any).electronAPI?.settings?.get?.()
+      if (s) {
+        const remaining = Math.max(0, (s.paperRemaining ?? 0) - copies)
+        await (window as any).electronAPI?.settings?.save?.({ paperRemaining: remaining })
+      }
+    } catch { /* ignore */ }
 
     sessionStore.lastPrintedImage = rotated
     sessionStore.lastPrintOptions = { type: printType, printName }
