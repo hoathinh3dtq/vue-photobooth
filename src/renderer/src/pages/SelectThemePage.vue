@@ -1292,8 +1292,13 @@ async function doPrint(existingDataUrl?: string): Promise<void> {
     let lastError: { ok: boolean; error?: string; detail?: string } | null = null
     if (!skipPrint) {
       for (let c = 0; c < copies; c++) {
+        let _zoom = 0.98, _ox = 0, _oy = 0
+        try {
+          const _s = await (window as any).electronAPI?.settings?.get?.()
+          if (_s) { _zoom = _s.zoom ?? 0.98; _ox = _s.offsetX ?? 0; _oy = _s.offsetY ?? 0 }
+        } catch { /* ignore */ }
         const success = await Promise.race([
-          window.electronAPI.printImage(rotated, { type: printType, printName }),
+          window.electronAPI.printImage(rotated, { type: printType, printName, zoom: _zoom, offsetX: _ox, offsetY: _oy }),
           new Promise<null>((resolve) => setTimeout(() => resolve(null), 40000)),
         ])
         if (!success) {

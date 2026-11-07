@@ -47,6 +47,11 @@ const router = createRouter({
       name: 'idol-theme',
       component: () => import('../pages/IdolThemePage.vue'),
     },
+    {
+      path: '/settings',
+      name: 'settings',
+      component: () => import('../pages/SettingsPage.vue'),
+    },
 
   ],
 })

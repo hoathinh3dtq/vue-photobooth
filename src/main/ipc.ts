@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { detectCamera, capture, status } from './services/digiCam'
+import { loadSettings, getSettings, saveSettings } from './services/settingsService'
 import { detectSidecar } from './services/sidecarCam'
 import * as canonEdsdk from './services/canonEdsdk'
 
@@ -72,9 +73,13 @@ ipcMain.handle('camera:canon-edsdk-import-recent', (_e, opts: { dir: string; cou
   canonEdsdk.canonImportRecent(opts.dir, opts?.count ?? 1),
 )
 
-ipcMain.handle('print-image', async (_event, dataUrl: string, opts: { type?: string; printName?: string }) => {
+ipcMain.handle('print-image', async (_event, dataUrl: string, opts: { type?: string; printName?: string; zoom?: number; offsetX?: number; offsetY?: number } = {}) => {
   const targetPrinter = opts?.printName ?? ''
   if (!targetPrinter) return { ok: false, error: 'PRINTER_NOT_FOUND' }
+  const settings = getSettings()
+  const zoom = (opts.zoom ?? settings.zoom ?? 0.98)
+  const offsetX = (opts.offsetX ?? settings.offsetX ?? 0)
+  const offsetY = (opts.offsetY ?? settings.offsetY ?? 0)
 
   const tmpDir = app.getPath('temp')
   const pngFile = path.join(tmpDir, `ptb-print-${Date.now()}.png`)
@@ -139,11 +144,13 @@ $doc.add_PrintPage({
       $imgH = $img.Height
     }
     $ratio = [Math]::Min($pWidth / $imgW, $pHeight / $imgH)
-    $zoom = 0.98
+    $zoom = ${zoom}
+    $offsetX = ${offsetX}
+    $offsetY = ${offsetY}
     $newW = [int]($imgW * $ratio * $zoom)
     $newH = [int]($imgH * $ratio * $zoom)
-    $posX = [int](($pWidth - $newW) / 2)
-    $posY = [int](($pHeight - $newH) / 2)
+    $posX = [int](($pWidth - $newW) / 2) + $offsetX
+    $posY = [int](($pHeight - $newH) / 2) + $offsetY
     $e.Graphics.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceCopy
     $e.Graphics.CompositingQuality = [System.Drawing.Drawing2D.CompositingQuality]::HighQuality
     $e.Graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
@@ -214,6 +221,33 @@ Write-Output 'PRINT_OK'
         w.focus()
       }
     } catch {}
+  }
+})
+
+ipcMain.handle('settings:get', () => getSettings())
+ipcMain.handle('settings:save', (_event, patch: Record<string, unknown>) => saveSettings(patch as never))
+ipcMain.handle('printer:list', async () => {
+  const { execFile } = await import('node:child_process')
+  const { promisify } = await import('node:util')
+  const execFileAsync = promisify(execFile)
+  try {
+    const { stdout } = await execFileAsync('powershell', [
+      '-ExecutionPolicy', 'Bypass', '-NoProfile', '-WindowStyle', 'Hidden',
+      '-Command', 'Get-Printer | Select-Object -ExpandProperty Name',
+    ], { timeout: 15000, encoding: 'utf8', windowsHide: true })
+    const names = (stdout || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean)
+    return { ok: true, printers: names }
+  } catch (e) {
+    return { ok: false, printers: [], error: (e as Error).message }
+  }
+})
+ipcMain.handle('printer:open-preferences', async (_event, name: string) => {
+  const { execFile } = await import('node:child_process')
+  try {
+    execFile('rundll32', ['printui.dll,PrintUIEntry', '/e', '/n', name], { windowsHide: false })
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
   }
 })
 

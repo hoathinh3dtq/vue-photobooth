@@ -3,6 +3,9 @@ import { contextBridge, ipcRenderer } from 'electron'
 export interface PrintOptions {
   type?: string
   printName?: string
+  zoom?: number
+  offsetX?: number
+  offsetY?: number
 }
 
 export interface PrintResult {
@@ -113,6 +116,14 @@ const api = {
     ipcRenderer.invoke('list-event-photos', eventId),
   readEventPhoto: (filePath: string): Promise<string | null> =>
     ipcRenderer.invoke('read-event-photo', filePath),
+  settings: {
+    get: (): Promise<any> => ipcRenderer.invoke('settings:get'),
+    save: (patch: Record<string, unknown>): Promise<any> => ipcRenderer.invoke('settings:save', patch),
+  },
+  printer: {
+    list: (): Promise<{ ok: boolean; printers: string[] }> => ipcRenderer.invoke('printer:list'),
+    openPreferences: (name: string): Promise<{ ok: boolean }> => ipcRenderer.invoke('printer:open-preferences', name),
+  },
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)

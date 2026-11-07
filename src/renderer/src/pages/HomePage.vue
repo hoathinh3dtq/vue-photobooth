@@ -22,6 +22,10 @@ function logout(): void {
   localStorage.clear()
   router.push('/login')
 }
+
+function goSettings(): void {
+  router.push('/settings')
+}
 </script>
 
 <template>
@@ -66,8 +70,19 @@ function logout(): void {
       type="button"
       aria-label="Đăng xuất"
       @click="logout"
+      style="right: 7vw;"
     >
       ✕
+    </button>
+    <button
+      class="hb-logout"
+      id="settingsBtn"
+      type="button"
+      aria-label="Cài đặt"
+      @click="goSettings"
+      style="right: 2.5vw;"
+    >
+      ⚙
     </button>
 
 

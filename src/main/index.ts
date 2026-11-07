@@ -1,6 +1,7 @@
 import { app, BrowserWindow, session, screen } from 'electron'
 import path from 'node:path'
 import { initCameraService, initSidecarCamService, initCanonEdsdkService, pruneOldEventPhotos } from './ipc'
+import { loadSettings } from './services/settingsService'
 
 // Tự động cấp quyền media (như v1) - phải append trước khi app ready
 app.commandLine.appendSwitch('use-fake-ui-for-media-stream')
@@ -83,6 +84,7 @@ app.whenReady().then(() => {
 
   createWindow()
 
+try { loadSettings() } catch {}
 void initCameraService().catch(() => {})
   void initSidecarCamService().catch(() => {})
   void initCanonEdsdkService().catch(() => {})

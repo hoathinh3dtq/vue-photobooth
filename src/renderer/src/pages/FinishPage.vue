@@ -112,8 +112,13 @@ async function printCopies(count: number): Promise<boolean> {
     showModal(`<p>Đang in... (${i + 1}/${count})</p>`, false)
     try {
       // Timeout 40s để không treo modal "Đang in..." khi driver bận
+      let _zoom = 0.98, _ox = 0, _oy = 0
+      try {
+        const _s = await (window as any).electronAPI?.settings?.get?.()
+        if (_s) { _zoom = _s.zoom ?? 0.98; _ox = _s.offsetX ?? 0; _oy = _s.offsetY ?? 0 }
+      } catch { /* ignore */ }
       const res = await Promise.race([
-        window.electronAPI.printImage(imageDataUrl, { ...opts }),
+        window.electronAPI.printImage(imageDataUrl, { ...opts, zoom: _zoom, offsetX: _ox, offsetY: _oy }),
         new Promise<null>((resolve) => setTimeout(() => resolve(null), 40000)),
       ])
       hideModal()
