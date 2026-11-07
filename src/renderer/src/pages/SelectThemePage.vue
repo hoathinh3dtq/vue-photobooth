@@ -1,4 +1,4 @@
-﻿﻿﻿<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import FlowerLoader from '../components/FlowerLoader.vue'
 import { useConfigStore } from '../stores/config'
@@ -17,6 +17,7 @@ interface Theme {
   slots: Slot[]
   processedSrc: string
   totalImage: number
+  savedSlots: Slot[] | null
 }
 
 interface Slot {
@@ -133,13 +134,28 @@ async function loadMoreThemes(): Promise<boolean> {
   items.forEach((item) => {
     if (!item) return
     const id = `theme-${item.id}`
+    const detail = (item as { detail?: { total_image?: number; hole_positions?: unknown } }).detail
+    const holes = Array.isArray(detail?.hole_positions) ? detail.hole_positions : null
+    let savedSlots: Slot[] | null = null
+    if (holes && holes.length) {
+      savedSlots = holes.map((h: any) => {
+        const xs = [h.tl?.x, h.tr?.x, h.br?.x, h.bl?.x].map(Number)
+        const ys = [h.tl?.y, h.tr?.y, h.br?.y, h.bl?.y].map(Number)
+        const minX = Math.min(...xs)
+        const maxX = Math.max(...xs)
+        const minY = Math.min(...ys)
+        const maxY = Math.max(...ys)
+        return { x: minX, y: minY, w: maxX - minX, h: maxY - minY }
+      })
+    }
     themes[id] = {
       buttonId: id,
       src: themeSrc(item as { thumbnail_url?: string }),
       ratio: '',
       slots: [],
       processedSrc: '',
-      totalImage: Number(((item as { detail?: { total_image?: number } }).detail?.total_image) || 0),
+      totalImage: Number(detail?.total_image || 0),
+      savedSlots,
     }
     entries.push([id, themes[id]])
   })
@@ -428,6 +444,33 @@ function renderThemePreview(): void {
 
   const theme = themes[selectedTheme.value]
   if (!theme) return
+
+  // Ưu tiên hole_positions do admin lưu (khớp khung in) nếu có
+  if ((!theme.slots || !theme.slots.length) && theme.savedSlots && theme.savedSlots.length) {
+    if (!theme.ratio) {
+      stage.innerHTML = '<p class="theme-preview-loading">Đang tải...</p>'
+      stage.className = 'theme-preview-stage is-empty'
+      const img = new Image()
+      img.onload = () => {
+        theme.ratio = `${img.naturalWidth} / ${img.naturalHeight}`
+        theme.slots = theme.savedSlots as Slot[]
+        theme.processedSrc = theme.src
+        renderThemePreview()
+        renderCapturedPhotos()
+      }
+      img.onerror = () => {
+        theme.ratio = '1 / 1'
+        theme.slots = theme.savedSlots as Slot[]
+        theme.processedSrc = theme.src
+        renderThemePreview()
+        renderCapturedPhotos()
+      }
+      img.src = theme.src
+      return
+    }
+    theme.slots = theme.savedSlots as Slot[]
+    theme.processedSrc = theme.processedSrc || theme.src
+  }
 
   if (!theme.slots || theme.slots.length === 0) {
     // Detect xong (ratio != '') mÃƒÂ  vÃ¡ÂºÂ«n 0 khe Ã¢â€ â€™ render khung phÃ¡ÂºÂ³ng, KHÃƒâ€NG dÃƒÂ² lÃ¡ÂºÂ¡i:
@@ -1335,6 +1378,7 @@ onMounted(async () => {
       slots: [],
       processedSrc: '',
       totalImage: selectionStore.capturedPhotos.length || selectionStore.idolIcons.length || 0,
+      savedSlots: null,
     }
     loading.value = false
     selectTheme(themeKey)
