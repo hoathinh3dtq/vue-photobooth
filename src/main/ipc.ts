@@ -106,34 +106,73 @@ try {
 }
 
 try {
-  $img = [System.Drawing.Image]::FromFile('${pngPath}')
-  $doc = New-Object System.Drawing.Printing.PrintDocument
-  $doc.PrinterSettings.PrinterName = '${printerName}'
-  if (-not $doc.PrinterSettings.IsValid) { Write-Output 'PRINTER_NOT_FOUND'; exit 0 }
-  $doc.DefaultPageSettings.Landscape = $true
-  $doc.add_PrintPage({
-    param($sender, $e)
-    $e.Graphics.DrawImage($img, $e.PageBounds)
-    $e.HasMorePages = $false
-  })
-  $doc.Print()
-  try { $img.Dispose() } catch {}
-
-  $slept = 0
-  while ($slept -le 8000) {
-    Start-Sleep -Milliseconds 500
-    $slept += 500
-    try {
-      $curRaw = (Get-CimInstance -ClassName Win32_Printer -Filter "Name='${printerName}'").JobCount
-      $current = if ($null -eq $curRaw) { 0 } else { [int]$curRaw }
-    } catch { break }
-    if ($current -le $before) { Write-Output 'PRINT_OK'; exit 0 }
-    if ($current -eq 0) { Write-Output 'PRINT_OK'; exit 0 }
-  }
-  Write-Output 'PRINT_OK'
+  $imgProbe = New-Object System.Drawing.Bitmap -ArgumentList '${pngPath}', $true
+  $imgIsLandscape = $imgProbe.Width -gt $imgProbe.Height
+  $imgProbe.Dispose()
 } catch {
   Write-Output "PRINT_FAIL:$($_.Exception.Message)"
+  exit 0
 }
+
+$doc = New-Object System.Drawing.Printing.PrintDocument
+$doc.PrinterSettings.PrinterName = '${printerName}'
+if (-not $doc.PrinterSettings.IsValid) { Write-Output 'PRINTER_NOT_FOUND'; exit 0 }
+$doc.DefaultPageSettings.Margins = New-Object System.Drawing.Printing.Margins(0, 0, 0, 0)
+$doc.OriginAtMargins = $false
+$doc.DefaultPageSettings.Landscape = $imgIsLandscape
+
+$script:renderError = $null
+$doc.add_PrintPage({
+  param($sender, $e)
+  $img = $null
+  try {
+    $img = New-Object System.Drawing.Bitmap -ArgumentList '${pngPath}', $true
+    $pWidth = $e.PageBounds.Width
+    $pHeight = $e.PageBounds.Height
+    $imgW = $img.Width
+    $imgH = $img.Height
+    $pageIsLandscape = $pWidth -gt $pHeight
+    $imgIsLandscape2 = $imgW -gt $imgH
+    if ($imgIsLandscape2 -ne $pageIsLandscape) {
+      $img.RotateFlip([System.Drawing.RotateFlipType]::Rotate90FlipNone)
+      $imgW = $img.Width
+      $imgH = $img.Height
+    }
+    $ratio = [Math]::Min($pWidth / $imgW, $pHeight / $imgH)
+    $zoom = 0.98
+    $newW = [int]($imgW * $ratio * $zoom)
+    $newH = [int]($imgH * $ratio * $zoom)
+    $posX = [int](($pWidth - $newW) / 2)
+    $posY = [int](($pHeight - $newH) / 2)
+    $e.Graphics.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceCopy
+    $e.Graphics.CompositingQuality = [System.Drawing.Drawing2D.CompositingQuality]::HighQuality
+    $e.Graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+    $e.Graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+    $e.Graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+    $e.Graphics.DrawImage($img, $posX, $posY, $newW, $newH)
+  } catch {
+    $script:renderError = $_.Exception.Message
+    $e.Cancel = $true
+  } finally {
+    if ($null -ne $img) { $img.Dispose() }
+  }
+  $e.HasMorePages = $false
+})
+$doc.Print()
+try { } catch {}
+
+$slept = 0
+while ($slept -le 8000) {
+  Start-Sleep -Milliseconds 500
+  $slept += 500
+  try {
+    $curRaw = (Get-CimInstance -ClassName Win32_Printer -Filter "Name='${printerName}'").JobCount
+    $current = if ($null -eq $curRaw) { 0 } else { [int]$curRaw }
+  } catch { break }
+  if ($current -le $before) { Write-Output 'PRINT_OK'; exit 0 }
+  if ($current -eq 0) { Write-Output 'PRINT_OK'; exit 0 }
+}
+Write-Output 'PRINT_OK'
 `.trim()
 
     // Async để không block main process (trước đây execFileSync treo cả app khi driver bận).
