@@ -1301,7 +1301,13 @@ async function doPrint(existingDataUrl?: string): Promise<void> {
       })
 
     const isTwoBySix = flowStore.flow.selectTheme.isTwoBySix(themes[selectedTheme.value]?.ratio)
-    const dataUrlWithQR = await embedQRCode(dataUrl, qrCode, isTwoBySix)
+    const isEvent = flowStore.type === 'event'
+    let printQr = true
+    try {
+      const s = await (window as any).electronAPI?.settings?.get?.()
+      printQr = (s?.printQr ?? true) && !isEvent
+    } catch { /* ignore */ }
+    const dataUrlWithQR = printQr ? await embedQRCode(dataUrl, qrCode, isTwoBySix) : dataUrl
 
     const loaderOverlay = document.createElement('div')
     loaderOverlay.className = 'print-loader-overlay'

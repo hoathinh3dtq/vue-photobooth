@@ -15,6 +15,7 @@ const paperRemaining = ref(400)
 const warningThreshold = ref(50)
 const allowCancelOnPreview = ref(true)
 const autoPrintOnPreview = ref(false)
+const printQr = ref(true)
 const status = ref('')
 const loading = ref(false)
 
@@ -35,6 +36,7 @@ async function load() {
       warningThreshold.value = s.warningThreshold ?? 50
       allowCancelOnPreview.value = s.allowCancelOnPreview ?? true
       autoPrintOnPreview.value = s.autoPrintOnPreview ?? false
+      printQr.value = s.printQr ?? true
     }
     const res = await api?.printer?.list?.()
     if (res?.ok) printers.value = res.printers || []
@@ -60,6 +62,7 @@ async function save() {
       warningThreshold: warningThreshold.value,
       allowCancelOnPreview: allowCancelOnPreview.value,
       autoPrintOnPreview: autoPrintOnPreview.value,
+      printQr: printQr.value,
     })
     status.value = 'Đã lưu settings.'
   } catch (e) {
@@ -150,6 +153,9 @@ onMounted(() => { void load() })
     </div>
     <div style="margin:1vw 0;">
       <label><input type="checkbox" v-model="autoPrintOnPreview" /> Tự động in khi preview render xong</label>
+    </div>
+    <div style="margin:1vw 0;">
+      <label><input type="checkbox" v-model="printQr" /> In kèm mã QR</label>
     </div>
     <p v-if="paperRemaining <= warningThreshold" style="color:#b45309; font-weight:700;">⚠ Sắp hết giấy!</p>
 

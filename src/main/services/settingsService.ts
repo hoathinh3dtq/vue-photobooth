@@ -14,6 +14,7 @@ export interface AppSettings {
   warningThreshold: number
   allowCancelOnPreview: boolean
   autoPrintOnPreview: boolean
+  printQr: boolean
 }
 
 const DEFAULTS: AppSettings = {
@@ -28,6 +29,7 @@ const DEFAULTS: AppSettings = {
   warningThreshold: 50,
   allowCancelOnPreview: true,
   autoPrintOnPreview: false,
+  printQr: true,
 }
 
 let state: AppSettings = { ...DEFAULTS }
