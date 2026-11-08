@@ -57,6 +57,11 @@ const router = createRouter({
       name: 'my-frames',
       component: () => import('../pages/MyFramesPage.vue'),
     },
+    {
+      path: '/frame-library',
+      name: 'frame-library',
+      component: () => import('../pages/FrameLibraryPage.vue'),
+    },
 
   ],
 })

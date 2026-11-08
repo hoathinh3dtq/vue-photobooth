@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { STORAGE_URL } from '../lib/api/client'
+import { uploadFrame, deleteAllFrames, bulkVisibility } from '../lib/api/frames'
 
 interface FrameHole { x: number; y: number; w: number; h: number; orientation: string }
 interface FrameMeta { holes: FrameHole[]; fw: number; fh: number }
@@ -28,7 +29,11 @@ async function loadFrames() {
   loading.value = true
   try {
     const token = localStorage.getItem('auth_token') || ''
-    const res = await fetch(`${import.meta.env.VITE_API_HOST || 'http://127.0.0.1:8000'}/api/frames/all`, {
+    const eventId = localStorage.getItem('event_id')
+    const url = eventId
+      ? `${import.meta.env.VITE_API_HOST || 'http://127.0.0.1:8000'}/api/frames/all?event_id=${eventId}`
+      : `${import.meta.env.VITE_API_HOST || 'http://127.0.0.1:8000'}/api/frames/all`
+    const res = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
     })
     const json = await res.json()
@@ -140,24 +145,15 @@ async function upload() {
   if (detected.value.holes.length === 0) { status.value = 'Không có lỗ, không thể upload.'; return }
   uploading.value = true
   try {
-    const token = localStorage.getItem('auth_token') || ''
-    const host = import.meta.env.VITE_API_HOST || 'http://127.0.0.1:8000'
-    const fd = new FormData()
-    fd.append('image', selectedFile.value)
-    fd.append('name', frameName.value || selectedFile.value.name)
-    fd.append('frame', frameShape.value)
-    fd.append('holes_metadata', JSON.stringify(detected.value))
-    fd.append('qr_x', '0')
-    fd.append('qr_y', '0')
-    fd.append('qr_size', '200')
-    fd.append('enable_overlay', 'true')
-    const res = await fetch(`${host}/api/frames/upload`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-      body: fd,
+    await uploadFrame(selectedFile.value, {
+      name: frameName.value || selectedFile.value.name,
+      shape: frameShape.value,
+      holes: detected.value,
+      qrX: 0,
+      qrY: 0,
+      qrSize: 200,
+      enableOverlay: true,
     })
-    const json = await res.json()
-    if (!res.ok) throw new Error(json?.message || 'Upload failed')
     status.value = 'Upload thành công!'
     selectedFile.value = null
     detected.value = null
@@ -167,6 +163,27 @@ async function upload() {
     status.value = 'Lỗi upload: ' + String(e)
   } finally {
     uploading.value = false
+  }
+}
+
+async function deleteAllFramesAction() {
+  if (!confirm('Xóa tất cả frame?')) return
+  try {
+    await deleteAllFrames()
+    await loadFrames()
+    status.value = 'Đã xóa tất cả frame.'
+  } catch (e) {
+    status.value = 'Lỗi xóa tất cả: ' + String(e)
+  }
+}
+
+async function setAllFramesActive(active: boolean) {
+  try {
+    await bulkVisibility(frames.value.map((f: any) => f.id), active)
+    await loadFrames()
+    status.value = active ? 'Đã bật tất cả frame.' : 'Đã tắt tất cả frame.'
+  } catch (e) {
+    status.value = 'Lỗi cập nhật trạng thái: ' + String(e)
   }
 }
 
@@ -219,6 +236,7 @@ onMounted(() => { void loadFrames() })
   <div style="padding:2vw; color:#333; font-family:sans-serif;">
     <h1>Frame của tôi</h1>
     <button @click="goHome">← Quay lại</button>
+    <button @click="router.push('/frame-library')" style="margin-left:8px;">Kho frame dùng chung</button>
 
     <div style="margin:1vw 0; padding:1vw; border:1px solid #ddd; border-radius:8px;">
       <h3>Upload frame mới</h3>
@@ -240,6 +258,11 @@ onMounted(() => { void loadFrames() })
       <button @click="upload" :disabled="uploading || !detected || detected.holes.length === 0">
         {{ uploading ? 'Đang upload...' : 'Upload frame' }}
       </button>
+      <div style="margin:8px 0; display:flex; gap:8px; flex-wrap:wrap;">
+        <button @click="deleteAllFramesAction" style="font-size:12px;">Xóa tất cả frame</button>
+        <button @click="setAllFramesActive(true)" style="font-size:12px;">Bật tất cả</button>
+        <button @click="setAllFramesActive(false)" style="font-size:12px;">Tắt tất cả</button>
+      </div>
       <p v-if="status" style="margin-top:8px; color:#b45309;">{{ status }}</p>
     </div>
 

@@ -7,6 +7,7 @@ import { useSelectionStore } from '../stores/selection'
 import { useSessionStore, type PendingUpload } from '../stores/session'
 import { STORAGE_URL } from '../lib/api/client'
 import { uploadImg } from '../lib/api/print'
+import { cacheFrameUrl } from '../lib/frameCache'
 import { showModal, showModalClose, hideModal } from '../lib/modal'
 import { stopTimeLapse } from '../lib/timelapse'
 
@@ -171,17 +172,19 @@ async function loadCustomFrames(): Promise<void> {
     const json = await res.json()
     const items = json?.data || []
     const entries: Array<[string, Theme]> = []
-    items.forEach((item: any) => {
-      if (!item || item.is_active === false) return
+    for (const item of items) {
+      if (!item || item.is_active === false) continue
       const meta = item.holes_metadata || {}
       const holes = Array.isArray(meta.holes) ? meta.holes : []
       const slots = holes.map((h: any) => ({ x: h.x, y: h.y, w: h.w, h: h.h }))
       const fw = meta.fw || 1
       const fh = meta.fh || 1
       const id = `frame-${item.id}`
+      const rawSrc = item.image_path ? `${host}/${String(item.image_path).startsWith('/') ? String(item.image_path).slice(1) : String(item.image_path)}` : ''
+      const src = rawSrc ? await cacheFrameUrl(rawSrc) : ''
       themes[id] = {
         buttonId: id,
-        src: item.image_path ? `${host}/${String(item.image_path).startsWith('/') ? String(item.image_path).slice(1) : String(item.image_path)}` : '',
+        src,
         ratio: `${fw} / ${fh}`,
         slots: slots.length ? slots : [],
         processedSrc: '',
@@ -189,7 +192,7 @@ async function loadCustomFrames(): Promise<void> {
         savedSlots: slots.length ? slots : null,
       }
       entries.push([id, themes[id]])
-    })
+    }
     if (entries.length) renderThemeChoices()
   } catch (e) {
     console.warn('[select-theme] loadCustomFrames failed:', e)
