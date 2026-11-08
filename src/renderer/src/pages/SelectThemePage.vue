@@ -965,6 +965,7 @@ function renderToCanvas(
   photoImgs: (HTMLImageElement | null)[],
   filterVal: string,
   idolDraws: Array<{ img: HTMLImageElement; side: 'left' | 'right' } | null> = [],
+  shopQrImg: HTMLImageElement | null = null,
 ): void {
   for (let index = 0; index < slots.length; index++) {
     const photo = filledPhotos[index]
@@ -1009,6 +1010,12 @@ function renderToCanvas(
 
   ctx.drawImage(frameImg, 0, 0, iw, ih)
 
+  // Shop QR (Zalo) overlay
+  if (shopQrImg && shopQrImg.naturalWidth) {
+    const qrSize = Math.round(iw * 0.12)
+    const margin = Math.round(iw * 0.02)
+    ctx.drawImage(shopQrImg, iw - qrSize - margin, ih - qrSize - margin, qrSize, qrSize)
+  }
   // IDOL-MODE: vÃ¡ÂºÂ½ icon idol vÃƒÂ o tÃ¡Â»Â«ng ÃƒÂ´ (contain, cao 90%, neo Ã„â€˜ÃƒÂ¡y, side theo tÃ¡Â»Â«ng icon)
   if (idolDraws.length > 0) {
     for (let index = 0; index < slots.length; index++) {
@@ -1031,7 +1038,7 @@ function renderToCanvas(
   }
 }
 
-function capturePrintImage(): Promise<string | null> {
+async function capturePrintImage(): Promise<string | null> {
   if (!selectedTheme.value) return Promise.resolve(null)
   const theme = themes[selectedTheme.value]
   if (!theme) return Promise.resolve(null)
@@ -1051,6 +1058,19 @@ function capturePrintImage(): Promise<string | null> {
     frameImg.onload = () => r()
     frameImg.onerror = () => r()
   }))
+
+  // Shop QR (Zalo) overlay
+  const shopQrImg = new Image()
+  let hasShopQr = false
+  try {
+    const s = await (window as any).electronAPI?.settings?.get?.()
+    if (s?.shopQr) {
+      hasShopQr = true
+      shopQrImg.src = s.shopQr
+      loads.push(new Promise((r) => { shopQrImg.onload = () => r(); shopQrImg.onerror = () => r() }))
+    }
+  } catch { /* ignore */ }
+  if (!hasShopQr) { /* no-op */ }
 
   const photoImgs: (HTMLImageElement | null)[] = []
   for (let index = 0; index < slots.length; index++) {
@@ -1115,7 +1135,7 @@ function capturePrintImage(): Promise<string | null> {
           return
         }
         const filterVal = TONE_FILTERS[selectionStore.selectedTone] || 'none'
-        renderToCanvas(tempCtx, stripW, stripH, slots, frameImg, photoImgs, filterVal, idolDraws)
+        renderToCanvas(tempCtx, stripW, stripH, slots, frameImg, photoImgs, filterVal, idolDraws, shopQrImg)
 
         if (isTwoBySix) {
           const leftMargin = 60

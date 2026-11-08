@@ -16,6 +16,7 @@ const warningThreshold = ref(50)
 const allowCancelOnPreview = ref(true)
 const autoPrintOnPreview = ref(false)
 const printQr = ref(true)
+const shopQr = ref('')
 const status = ref('')
 const loading = ref(false)
 
@@ -37,6 +38,7 @@ async function load() {
       allowCancelOnPreview.value = s.allowCancelOnPreview ?? true
       autoPrintOnPreview.value = s.autoPrintOnPreview ?? false
       printQr.value = s.printQr ?? true
+      shopQr.value = s.shopQr || ''
     }
     const res = await api?.printer?.list?.()
     if (res?.ok) printers.value = res.printers || []
@@ -63,12 +65,24 @@ async function save() {
       allowCancelOnPreview: allowCancelOnPreview.value,
       autoPrintOnPreview: autoPrintOnPreview.value,
       printQr: printQr.value,
+      shopQr: shopQr.value,
     })
     status.value = 'Đã lưu settings.'
   } catch (e) {
     status.value = 'Lỗi lưu: ' + String(e)
   }
 }
+
+function onShopQrFile(e: Event) {
+  const input = e.target as HTMLInputElement
+  const f = input.files?.[0]
+  if (!f) return
+  const reader = new FileReader()
+  reader.onload = () => { shopQr.value = String(reader.result || '') }
+  reader.readAsDataURL(f)
+}
+
+function clearShopQr() { shopQr.value = '' }
 
 async function openPrefs() {
   try {
@@ -156,6 +170,15 @@ onMounted(() => { void load() })
     </div>
     <div style="margin:1vw 0;">
       <label><input type="checkbox" v-model="printQr" /> In kèm mã QR</label>
+    </div>
+
+    <div style="margin:1vw 0;">
+      <label>QR của quán (Zalo): </label>
+      <input type="file" accept="image/*" @change="onShopQrFile" />
+      <button @click="clearShopQr" style="margin-left:8px;">Xóa</button>
+      <div v-if="shopQr" style="margin-top:8px;">
+        <img :src="shopQr" style="max-width:120px; border:1px solid #ccc;" />
+      </div>
     </div>
     <p v-if="paperRemaining <= warningThreshold" style="color:#b45309; font-weight:700;">⚠ Sắp hết giấy!</p>
 

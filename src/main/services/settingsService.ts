@@ -15,6 +15,7 @@ export interface AppSettings {
   allowCancelOnPreview: boolean
   autoPrintOnPreview: boolean
   printQr: boolean
+  shopQr: string
 }
 
 const DEFAULTS: AppSettings = {
@@ -30,6 +31,7 @@ const DEFAULTS: AppSettings = {
   allowCancelOnPreview: true,
   autoPrintOnPreview: false,
   printQr: true,
+  shopQr: '',
 }
 
 let state: AppSettings = { ...DEFAULTS }
