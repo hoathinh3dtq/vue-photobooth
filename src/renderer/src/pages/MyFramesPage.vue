@@ -170,6 +170,19 @@ async function upload() {
   }
 }
 
+async function saveQr(frame: any) {
+  try {
+    const token = localStorage.getItem('auth_token') || ''
+    const host = import.meta.env.VITE_API_HOST || 'http://127.0.0.1:8000'
+    await fetch(`${host}/api/frames/${frame.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ qr_x: frame.qr_x, qr_y: frame.qr_y, qr_size: frame.qr_size }),
+    })
+    status.value = 'Đã lưu QR.'
+  } catch (e) { status.value = String(e) }
+}
+
 async function toggleActive(frame: any) {
   try {
     const token = localStorage.getItem('auth_token') || ''
@@ -238,6 +251,12 @@ onMounted(() => { void loadFrames() })
         <div style="flex:1;">
           <div><strong>{{ f.name }}</strong></div>
           <div style="font-size:12px; color:#666;">{{ f.frame_shape }} · {{ (f.holes_metadata?.holes?.length) || 0 }} lỗ · {{ f.is_active ? 'active' : 'inactive' }}</div>
+          <div style="font-size:11px; margin-top:4px; display:flex; gap:6px; align-items:center;">
+            <label>QR x:</label><input type="number" v-model.number="f.qr_x" style="width:50px;" />
+            <label>y:</label><input type="number" v-model.number="f.qr_y" style="width:50px;" />
+            <label>size:</label><input type="number" v-model.number="f.qr_size" style="width:50px;" />
+            <button @click="saveQr(f)" style="font-size:11px;">Lưu QR</button>
+          </div>
         </div>
         <button @click="toggleActive(f)">{{ f.is_active ? 'Tắt' : 'Bật' }}</button>
         <button @click="removeFrame(f)" style="color:red;">Xóa</button>

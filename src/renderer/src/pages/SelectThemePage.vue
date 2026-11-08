@@ -1314,7 +1314,12 @@ async function doPrint(existingDataUrl?: string): Promise<void> {
     // pb_selection khÃƒÂ´ng Ã„â€˜Ã†Â°Ã¡Â»Â£c thÃ¡ÂºÂ¯ng setting mÃ¡Â»â€ºi cÃ¡Â»Â§a booth.
     const cfg = configStore.config || {}
     const cfgPrinter = printType === '2x6' ? cfg.printer_26 : cfg.printer_46
-    const printName = String(cfgPrinter || selectionStore.printName || '')
+    let settingsPrinter = ''
+    try {
+      const s = await (window as any).electronAPI?.settings?.get?.()
+      if (s) settingsPrinter = printType === '2x6' ? (s.stripPrinter || s.printerName || '') : (s.fullPrinter || s.printerName || '')
+    } catch { /* ignore */ }
+    const printName = String(settingsPrinter || cfgPrinter || selectionStore.printName || '')
     console.log('[print] printer:', printName, 'type:', printType)
     console.log('[print] cfg printers:', JSON.stringify({ p26: cfg.printer_26 ?? null, p46: cfg.printer_46 ?? null }))
     // TEST-ONLY (dev): localStorage.skipPrint === '1' Ã¢â€ â€™ bÃ¡Â»Â qua in giÃ¡ÂºÂ¥y, vÃ¡ÂºÂ«n Ã„â€˜i tiÃ¡ÂºÂ¿p finish.
@@ -1388,8 +1393,15 @@ async function handlePrintFlow(): Promise<void> {
   if (!selectedTheme.value) return
   const dataUrl = await capturePrintImage()
   if (!dataUrl) return
-  const confirmed = await showPrintPreview(dataUrl)
-  if (!confirmed) return
+  let autoPrint = false
+  try {
+    const s = await (window as any).electronAPI?.settings?.get?.()
+    autoPrint = !!s?.autoPrintOnPreview
+  } catch { /* ignore */ }
+  if (!autoPrint) {
+    const confirmed = await showPrintPreview(dataUrl)
+    if (!confirmed) return
+  }
   const ok = await flowStore.flow.selectTheme.beforePrint()
   if (!ok) return
   await doPrint(dataUrl)

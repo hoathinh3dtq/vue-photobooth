@@ -5,6 +5,8 @@ import { useRouter } from 'vue-router'
 const router = useRouter()
 const printers = ref<string[]>([])
 const printerName = ref('')
+const stripPrinter = ref('')
+const fullPrinter = ref('')
 const zoom = ref(0.98)
 const offsetX = ref(0)
 const offsetY = ref(0)
@@ -12,6 +14,7 @@ const paperLoaded = ref(400)
 const paperRemaining = ref(400)
 const warningThreshold = ref(50)
 const allowCancelOnPreview = ref(true)
+const autoPrintOnPreview = ref(false)
 const status = ref('')
 const loading = ref(false)
 
@@ -22,6 +25,8 @@ async function load() {
     const s = await api?.settings?.get?.()
     if (s) {
       printerName.value = s.printerName || ''
+      stripPrinter.value = s.stripPrinter || ''
+      fullPrinter.value = s.fullPrinter || ''
       zoom.value = s.zoom ?? 0.98
       offsetX.value = s.offsetX ?? 0
       offsetY.value = s.offsetY ?? 0
@@ -29,6 +34,7 @@ async function load() {
       paperRemaining.value = s.paperRemaining ?? 400
       warningThreshold.value = s.warningThreshold ?? 50
       allowCancelOnPreview.value = s.allowCancelOnPreview ?? true
+      autoPrintOnPreview.value = s.autoPrintOnPreview ?? false
     }
     const res = await api?.printer?.list?.()
     if (res?.ok) printers.value = res.printers || []
@@ -44,6 +50,8 @@ async function save() {
     const api = (window as any).electronAPI
     await api?.settings?.save?.({
       printerName: printerName.value,
+      stripPrinter: stripPrinter.value,
+      fullPrinter: fullPrinter.value,
       zoom: zoom.value,
       offsetX: offsetX.value,
       offsetY: offsetY.value,
@@ -51,6 +59,7 @@ async function save() {
       paperRemaining: paperRemaining.value,
       warningThreshold: warningThreshold.value,
       allowCancelOnPreview: allowCancelOnPreview.value,
+      autoPrintOnPreview: autoPrintOnPreview.value,
     })
     status.value = 'Đã lưu settings.'
   } catch (e) {
@@ -90,6 +99,22 @@ onMounted(() => { void load() })
     </div>
 
     <div style="margin:1vw 0;">
+      <label>Máy in strip (2x6): </label>
+      <select v-model="stripPrinter" style="min-width:260px;">
+        <option value="">-- chọn máy in --</option>
+        <option v-for="p in printers" :key="'s'+p" :value="p">{{ p }}</option>
+      </select>
+    </div>
+
+    <div style="margin:1vw 0;">
+      <label>Máy in full (4x6): </label>
+      <select v-model="fullPrinter" style="min-width:260px;">
+        <option value="">-- chọn máy in --</option>
+        <option v-for="p in printers" :key="'f'+p" :value="p">{{ p }}</option>
+      </select>
+    </div>
+
+    <div style="margin:1vw 0;">
       <label>Zoom correction: {{ zoom.toFixed(2) }}</label>
       <input type="range" min="0.80" max="1.10" step="0.01" v-model.number="zoom" style="width:100%;" />
     </div>
@@ -122,6 +147,9 @@ onMounted(() => { void load() })
 
     <div style="margin:1vw 0;">
       <label><input type="checkbox" v-model="allowCancelOnPreview" /> Cho phép hủy ở preview in</label>
+    </div>
+    <div style="margin:1vw 0;">
+      <label><input type="checkbox" v-model="autoPrintOnPreview" /> Tự động in khi preview render xong</label>
     </div>
     <p v-if="paperRemaining <= warningThreshold" style="color:#b45309; font-weight:700;">⚠ Sắp hết giấy!</p>
 

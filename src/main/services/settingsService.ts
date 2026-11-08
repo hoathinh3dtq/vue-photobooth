@@ -4,6 +4,8 @@ import { app } from 'electron'
 
 export interface AppSettings {
   printerName: string
+  stripPrinter: string
+  fullPrinter: string
   zoom: number
   offsetX: number
   offsetY: number
@@ -11,10 +13,13 @@ export interface AppSettings {
   paperRemaining: number
   warningThreshold: number
   allowCancelOnPreview: boolean
+  autoPrintOnPreview: boolean
 }
 
 const DEFAULTS: AppSettings = {
   printerName: '',
+  stripPrinter: '',
+  fullPrinter: '',
   zoom: 0.98,
   offsetX: 0,
   offsetY: 0,
@@ -22,6 +27,7 @@ const DEFAULTS: AppSettings = {
   paperRemaining: 400,
   warningThreshold: 50,
   allowCancelOnPreview: true,
+  autoPrintOnPreview: false,
 }
 
 let state: AppSettings = { ...DEFAULTS }
