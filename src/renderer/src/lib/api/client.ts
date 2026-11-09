@@ -1,5 +1,7 @@
 export const API_HOST: string =
-  import.meta.env.VITE_API_HOST || 'https://admin.photobooth.top'
+  import.meta.env.VITE_API_HOST || (location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+    ? 'http://127.0.0.1:8000'
+    : 'https://admin.photobooth.top')
 
 export const BASE_URL = `${API_HOST}/api`
 export const STORAGE_URL = API_HOST

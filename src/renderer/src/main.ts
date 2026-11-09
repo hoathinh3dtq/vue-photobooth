@@ -1,5 +1,6 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
+import { installTauriBridge } from './lib/tauriBridge'
 import { login, saveSession } from './lib/api/auth'
 import './styles/global.css'
 import './styles/v1/main.css'
@@ -9,6 +10,9 @@ import './styles/v1/camera.css'
 import './styles/v1/select_theme.css'
 import App from './App.vue'
 import router from './router'
+
+// Tauri bridge (Rust shell) — phải install trước mọi electronAPI call
+try { installTauriBridge() } catch { /* ignore */ }
 
 // Forward console ra terminal main (kiosk full màn hình không mở devtools được)
 function fmtArgs(args: unknown[]): string {
