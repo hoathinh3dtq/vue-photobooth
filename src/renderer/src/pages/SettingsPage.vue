@@ -1,8 +1,14 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
+
+type TabId = 'general' | 'beauty' | 'filter' | 'frame' | 'ui' | 'hardware' | 'reprint' | 'event' | 'sync' | 'license' | 'update' | 'contact'
+
+const activeTab = ref<TabId>('general')
+
+// Printer (existing)
 const printers = ref<string[]>([])
 const printerName = ref('')
 const stripPrinter = ref('')
@@ -19,6 +25,108 @@ const printQr = ref(true)
 const shopQr = ref('')
 const status = ref('')
 const loading = ref(false)
+
+// General
+const countdownSeconds = ref(10)
+const enableDefaultBeep = ref(true)
+const customCountdownMp3 = ref('')
+const hideSettingsButton = ref(false)
+const manualCapture = ref(false)
+const autoFillAfterCapture = ref(false)
+const allowRetake = ref(true)
+const previewScale = ref(100)
+const retakeBtnScale = ref(100)
+const autoStartCountdown = ref(false)
+const allowCancelOnPrint = ref(true)
+const skipPrintConfirm = ref(false)
+const autoSwitchToPrint = ref(false)
+const language = ref<'vi' | 'en'>('vi')
+const mode = ref<'photobooth' | 'selfbooth'>('photobooth')
+
+// Beauty
+const beautySkin = ref(false)
+const beautyTone = ref(false)
+const beautyBlush = ref(false)
+const beautyLip = ref(false)
+
+// Filter
+const filters = ref<string[]>([])
+
+// Camera
+const cameraVendor = ref('canon')
+const cameraId = ref('')
+const mirror = ref(true)
+const videoDevices = ref<any[]>([])
+const selectedVideoSource = ref('')
+
+// Sync
+const cloudSync = ref(true)
+const offlineFirst = ref(false)
+const disablePaymentOffline = ref(false)
+const queueStats = ref({ pending: 0, uploading: 0, failed: 0, done: 0 })
+
+// License
+const machineApiKey = ref('')
+
+// Event
+const events = ref<any[]>([])
+const eventName = ref('')
+const eventLoading = ref(false)
+const activeEventId = ref('')
+const activeEventName = ref('')
+const eventStatus = ref('')
+
+const TABS: { id: TabId; label: string; icon: string }[] = [
+  { id: 'general', label: 'Chung & Trải nghiệm', icon: '☑' },
+  { id: 'beauty', label: 'Làm đẹp AI', icon: '✨' },
+  { id: 'filter', label: 'Quản lý Filter', icon: '◐' },
+  { id: 'frame', label: 'Quản lý Frame & Layout', icon: '▣' },
+  { id: 'ui', label: 'Giao diện ứng dụng', icon: '✎' },
+  { id: 'hardware', label: 'Thiết bị Phần cứng', icon: '⚙' },
+  { id: 'reprint', label: 'In lại ảnh', icon: '⎙' },
+  { id: 'event', label: 'Sự kiện', icon: '🗓' },
+  { id: 'sync', label: 'Hoạt động & Đồng bộ', icon: '☁' },
+  { id: 'license', label: 'Kết nối & Bản quyền', icon: '🛡' },
+  { id: 'update', label: 'Cập nhật', icon: '⬇' },
+  { id: 'contact', label: 'Liên hệ', icon: '☎' },
+]
+
+const GROUPS = [
+  { title: 'THIẾT LẬP PHIÊN CHỤP', items: ['general', 'beauty', 'filter'] as TabId[] },
+  { title: 'NỘI DUNG & GIAO DIỆN', items: ['frame', 'ui'] as TabId[] },
+  { title: 'THIẾT BỊ & SỰ KIỆN', items: ['hardware', 'reprint', 'event'] as TabId[] },
+  { title: 'VẬN HÀNH & HỖ TRỢ', items: ['sync', 'license', 'update', 'contact'] as TabId[] },
+]
+
+const activeLabel = computed(() => TABS.find(t => t.id === activeTab.value)?.label || '')
+const activeHint = computed(() => {
+  const map: Record<TabId, string> = {
+    general: 'Thiết lập luồng chụp, đếm ngược và trải nghiệm của khách.',
+    beauty: 'Điều chỉnh hiệu ứng làm đẹp áp dụng sau khi chụp.',
+    filter: 'Quản lý bộ lọc màu được cài trên máy này.',
+    frame: 'Tạo layout và tải frame lên Web Panel.',
+    ui: 'Màn hình chờ, logo và màu sắc trên Web Panel.',
+    hardware: 'Kết nối máy ảnh, máy in và điều chỉnh liên quan đến in.',
+    reprint: 'Chọn ảnh đã chụp để in lại một cách an toàn.',
+    event: 'Tạo, chọn và theo dõi sự kiện đang diễn ra.',
+    sync: 'Theo dõi đồng bộ, cache và dữ liệu được lưu trên máy.',
+    license: 'Kiểm tra kết nối máy chủ và bản quyền sử dụng của máy.',
+    update: 'Kiểm tra bản cập nhật.',
+    contact: 'Xem thông tin hỗ trợ.',
+  }
+  return map[activeTab.value]
+})
+
+const deviceId = computed(() => {
+  try {
+    return (window as any).electronAPI?.deviceId || 'booth-local-001'
+  } catch { return 'booth-local-001' }
+})
+
+const paperPercent = computed(() => {
+  if (!paperLoaded.value) return 0
+  return Math.round((paperRemaining.value / paperLoaded.value) * 100)
+})
 
 async function load() {
   loading.value = true
@@ -39,9 +147,43 @@ async function load() {
       autoPrintOnPreview.value = s.autoPrintOnPreview ?? false
       printQr.value = s.printQr ?? true
       shopQr.value = s.shopQr || ''
+      countdownSeconds.value = s.countdownSeconds ?? 10
+      enableDefaultBeep.value = s.enableDefaultBeep ?? true
+      customCountdownMp3.value = s.customCountdownMp3 || ''
+      hideSettingsButton.value = s.hideSettingsButton ?? false
+      manualCapture.value = s.manualCapture ?? false
+      autoFillAfterCapture.value = s.autoFillAfterCapture ?? false
+      allowRetake.value = s.allowRetake ?? true
+      previewScale.value = s.previewScale ?? 100
+      retakeBtnScale.value = s.retakeBtnScale ?? 100
+      autoStartCountdown.value = s.autoStartCountdown ?? false
+      allowCancelOnPrint.value = s.allowCancelOnPrint ?? true
+      skipPrintConfirm.value = s.skipPrintConfirm ?? false
+      autoSwitchToPrint.value = s.autoSwitchToPrint ?? false
+      language.value = s.language || 'vi'
+      mode.value = s.mode || 'photobooth'
+      beautySkin.value = s.beautySkin ?? false
+      beautyTone.value = s.beautyTone ?? false
+      beautyBlush.value = s.beautyBlush ?? false
+      beautyLip.value = s.beautyLip ?? false
+      filters.value = s.filters || []
+      cameraVendor.value = s.cameraVendor || 'canon'
+      cameraId.value = s.cameraId || ''
+      mirror.value = s.mirror ?? true
+      cloudSync.value = s.cloudSync ?? true
+      offlineFirst.value = s.offlineFirst ?? false
+      disablePaymentOffline.value = s.disablePaymentOffline ?? false
+      machineApiKey.value = s.machineApiKey || ''
+      activeEventId.value = s.activeEventId || localStorage.getItem('event_id') || ''
+      activeEventName.value = s.activeEventName || ''
     }
     const res = await api?.printer?.list?.()
     if (res?.ok) printers.value = res.printers || []
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices()
+      videoDevices.value = devices.filter(d => d.kind === 'videoinput')
+    } catch { /* ignore */ }
+    await loadEvents()
   } catch (e) {
     status.value = 'Lỗi tải settings: ' + String(e)
   } finally {
@@ -66,11 +208,111 @@ async function save() {
       autoPrintOnPreview: autoPrintOnPreview.value,
       printQr: printQr.value,
       shopQr: shopQr.value,
+      countdownSeconds: countdownSeconds.value,
+      enableDefaultBeep: enableDefaultBeep.value,
+      customCountdownMp3: customCountdownMp3.value,
+      hideSettingsButton: hideSettingsButton.value,
+      manualCapture: manualCapture.value,
+      autoFillAfterCapture: autoFillAfterCapture.value,
+      allowRetake: allowRetake.value,
+      previewScale: previewScale.value,
+      retakeBtnScale: retakeBtnScale.value,
+      autoStartCountdown: autoStartCountdown.value,
+      allowCancelOnPrint: allowCancelOnPrint.value,
+      skipPrintConfirm: skipPrintConfirm.value,
+      autoSwitchToPrint: autoSwitchToPrint.value,
+      language: language.value,
+      mode: mode.value,
+      beautySkin: beautySkin.value,
+      beautyTone: beautyTone.value,
+      beautyBlush: beautyBlush.value,
+      beautyLip: beautyLip.value,
+      filters: filters.value,
+      cameraVendor: cameraVendor.value,
+      cameraId: cameraId.value,
+      mirror: mirror.value,
+      cloudSync: cloudSync.value,
+      offlineFirst: offlineFirst.value,
+      disablePaymentOffline: disablePaymentOffline.value,
+      machineApiKey: machineApiKey.value,
+      activeEventId: activeEventId.value,
+      activeEventName: activeEventName.value,
     })
-    status.value = 'Đã lưu settings.'
+    status.value = 'Đã lưu cài đặt.'
+    // sync active event to localStorage
+    if (activeEventId.value) {
+      localStorage.setItem('event_id', activeEventId.value)
+      localStorage.setItem('booth_type', 'event')
+    }
   } catch (e) {
     status.value = 'Lỗi lưu: ' + String(e)
   }
+}
+
+async function loadEvents() {
+  eventLoading.value = true
+  try {
+    const token = localStorage.getItem('auth_token') || ''
+    const host = import.meta.env.VITE_API_HOST || 'http://127.0.0.1:8000'
+    const res = await fetch(`${host}/api/events`, { headers: { Authorization: `Bearer ${token}` } })
+    if (!res.ok) return
+    const json = await res.json()
+    events.value = json?.events || json?.data || []
+    if (activeEventId.value) {
+      const cur = events.value.find((e: any) => String(e.id) === String(activeEventId.value))
+      if (cur) activeEventName.value = cur.name
+    }
+  } catch { /* ignore */ }
+  finally { eventLoading.value = false }
+}
+
+async function createEvent() {
+  const name = eventName.value.trim()
+  if (!name) { eventStatus.value = 'Nhập tên sự kiện trước.'; return }
+  eventLoading.value = true
+  try {
+    const token = localStorage.getItem('auth_token') || ''
+    const host = import.meta.env.VITE_API_HOST || 'http://127.0.0.1:8000'
+    const res = await fetch(`${host}/api/events`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ name, status: 1 }),
+    })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error((json as any)?.message || 'Tạo sự kiện thất bại')
+    const ev = (json as any)?.data || json
+    await loadEvents()
+    if (ev?.id) {
+      activeEventId.value = String(ev.id)
+      activeEventName.value = ev.name || name
+      eventStatus.value = 'Đã tạo sự kiện.'
+    }
+    eventName.value = ''
+    await save()
+  } catch (e) {
+    eventStatus.value = 'Lỗi: ' + String(e)
+  } finally { eventLoading.value = false }
+}
+
+function activateEvent(ev: any) {
+  activeEventId.value = String(ev.id)
+  activeEventName.value = ev.name
+  eventStatus.value = `Việc sự kiện "${ev.name}"`
+}
+
+async function deleteEvent(ev: any) {
+  if (!confirm(`Xóa sự kiện "${ev.name}"?`)) return
+  try {
+    const token = localStorage.getItem('auth_token') || ''
+    const host = import.meta.env.VITE_API_HOST || 'http://127.0.0.1:8000'
+    await fetch(`${host}/api/events/${ev.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+    if (String(activeEventId.value) === String(ev.id)) {
+      activeEventId.value = ''
+      activeEventName.value = ''
+      localStorage.removeItem('event_id')
+    }
+    await loadEvents()
+  } catch { /* ignore */ }
 }
 
 function onShopQrFile(e: Event) {
@@ -81,108 +323,478 @@ function onShopQrFile(e: Event) {
   reader.onload = () => { shopQr.value = String(reader.result || '') }
   reader.readAsDataURL(f)
 }
-
 function clearShopQr() { shopQr.value = '' }
+
+function onCountdownMp3(e: Event) {
+  const input = e.target as HTMLInputElement
+  const f = input.files?.[0]
+  if (!f) return
+  if (f.size > 10 * 1024 * 1024) { status.value = 'MP3 tối đa 10MB.'; return }
+  const reader = new FileReader()
+  reader.onload = () => { customCountdownMp3.value = String(reader.result || '') }
+  reader.readAsDataURL(f)
+}
+
+function triggerCube() { (document.querySelector('#cubeInput') as HTMLInputElement)?.click() }
+
+function onCubeFile(e: Event) {
+  const input = e.target as HTMLInputElement
+  const files = input.files ? Array.from(input.files) : []
+  files.forEach(f => {
+    if (!filters.value.includes(f.name)) filters.value.push(f.name)
+  })
+}
+function removeFilter(name: string) { filters.value = filters.value.filter(f => f !== name) }
 
 async function openPrefs() {
   try {
-    const api = (window as any).electronAPI
-    await api?.printer?.openPreferences?.(printerName.value)
-  } catch (e) {
-    status.value = 'Lỗi mở preferences: ' + String(e)
-  }
+    await (window as any).electronAPI?.printer?.openPreferences?.(printerName.value || stripPrinter.value)
+  } catch (e) { status.value = 'Lỗi mở preferences: ' + String(e) }
 }
 
-function goHome() {
-  router.push('/home')
-}
+function goHome() { router.push('/home') }
+function refreshApp() { window.location.reload() }
+
+function themesCount(): number { return 0 }
 
 onMounted(() => { void load() })
 </script>
 
 <template>
-  <div class="settings-page" style="padding:2vw; color:#333; font-family:sans-serif;">
-    <h1>Cài đặt máy in</h1>
-    <button @click="goHome" style="margin-bottom:1vw;">← Quay lại</button>
-
-    <div style="margin:1vw 0;">
-      <label>Máy in (strip): </label>
-      <select v-model="printerName" style="min-width:260px;">
-        <option value="">-- chọn máy in --</option>
-        <option v-for="p in printers" :key="p" :value="p">{{ p }}</option>
-      </select>
-      <button @click="openPrefs" style="margin-left:8px;">Mở tùy chọn máy in</button>
-      <button @click="load" style="margin-left:8px;">Nạp lại danh sách</button>
-    </div>
-
-    <div style="margin:1vw 0;">
-      <label>Máy in strip (2x6): </label>
-      <select v-model="stripPrinter" style="min-width:260px;">
-        <option value="">-- chọn máy in --</option>
-        <option v-for="p in printers" :key="'s'+p" :value="p">{{ p }}</option>
-      </select>
-    </div>
-
-    <div style="margin:1vw 0;">
-      <label>Máy in full (4x6): </label>
-      <select v-model="fullPrinter" style="min-width:260px;">
-        <option value="">-- chọn máy in --</option>
-        <option v-for="p in printers" :key="'f'+p" :value="p">{{ p }}</option>
-      </select>
-    </div>
-
-    <div style="margin:1vw 0;">
-      <label>Zoom correction: {{ zoom.toFixed(2) }}</label>
-      <input type="range" min="0.80" max="1.10" step="0.01" v-model.number="zoom" style="width:100%;" />
-    </div>
-
-    <div style="margin:1vw 0; display:flex; gap:1vw;">
-      <div>
-        <label>Offset X: </label>
-        <input type="number" v-model.number="offsetX" style="width:80px;" />
+  <div class="ds-root">
+    <!-- Sidebar -->
+    <aside class="ds-sidebar">
+      <div class="ds-brand">
+        <div class="ds-logo">📸</div>
+        <div>
+          <div class="ds-brand-name">HiHiBooth</div>
+          <div class="ds-brand-sub">CÀI ĐẶT DESKTOP</div>
+        </div>
       </div>
-      <div>
-        <label>Offset Y: </label>
-        <input type="number" v-model.number="offsetY" style="width:80px;" />
-      </div>
-    </div>
 
-    <div style="margin:1vw 0; display:flex; gap:1vw;">
-      <div>
-        <label>Giấy đã nạp: </label>
-        <input type="number" v-model.number="paperLoaded" style="width:80px;" />
-      </div>
-      <div>
-        <label>Giấy còn lại: </label>
-        <input type="number" v-model.number="paperRemaining" style="width:80px;" />
-      </div>
-      <div>
-        <label>Ngưỡng cảnh báo: </label>
-        <input type="number" v-model.number="warningThreshold" style="width:80px;" />
-      </div>
-    </div>
+      <button class="ds-back" @click="goHome">← Quay lại</button>
 
-    <div style="margin:1vw 0;">
-      <label><input type="checkbox" v-model="allowCancelOnPreview" /> Cho phép hủy ở preview in</label>
-    </div>
-    <div style="margin:1vw 0;">
-      <label><input type="checkbox" v-model="autoPrintOnPreview" /> Tự động in khi preview render xong</label>
-    </div>
-    <div style="margin:1vw 0;">
-      <label><input type="checkbox" v-model="printQr" /> In kèm mã QR</label>
-    </div>
-
-    <div style="margin:1vw 0;">
-      <label>QR của quán (Zalo): </label>
-      <input type="file" accept="image/*" @change="onShopQrFile" />
-      <button @click="clearShopQr" style="margin-left:8px;">Xóa</button>
-      <div v-if="shopQr" style="margin-top:8px;">
-        <img :src="shopQr" style="max-width:120px; border:1px solid #ccc;" />
+      <div class="ds-top-actions">
+        <button class="ds-refresh" @click="refreshApp">↻ Làm Mới APP</button>
+        <button class="ds-power" @click="goHome" title="Trang chủ">⏻</button>
       </div>
-    </div>
-    <p v-if="paperRemaining <= warningThreshold" style="color:#b45309; font-weight:700;">⚠ Sắp hết giấy!</p>
 
-    <button @click="save" :disabled="loading" style="margin-top:1vw; padding:8px 16px;">Lưu cài đặt</button>
-    <p v-if="status" style="margin-top:8px; color:green;">{{ status }}</p>
+      <template v-for="g in GROUPS" :key="g.title">
+        <div class="ds-group-title">{{ g.title }}</div>
+        <button
+          v-for="id in g.items"
+          :key="id"
+          class="ds-nav"
+          :class="{ active: activeTab === id }"
+          @click="activeTab = id"
+        >
+          <span>{{ TABS.find(t => t.id === id)?.icon }}</span> {{ TABS.find(t => t.id === id)?.label }}
+        </button>
+      </template>
+
+      <div class="ds-sidebar-foot">
+        <div class="row"><span>Phiên bản</span><strong>v12.0.8</strong></div>
+        <div class="row"><span>Device ID</span><strong>{{ deviceId.slice(0, 12) }}…</strong></div>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="ds-main">
+      <header class="ds-topbar">
+        <div class="ds-top-left">
+          <button class="ds-burger">☰</button>
+          <div>
+            <h1>{{ activeLabel }}</h1>
+            <p>{{ activeHint }}</p>
+          </div>
+        </div>
+        <div class="ds-top-right">
+          <span class="ds-chip">📷 Canon EOS</span>
+          <span class="ds-chip green">{{ paperRemaining }} tờ</span>
+          <span class="ds-chip">☁ Sync OK</span>
+          <button class="ds-chip dark" @click="goHome">⎋ Quay lại</button>
+        </div>
+      </header>
+
+      <nav class="ds-tabs">
+        <button
+          v-for="t in TABS"
+          :key="t.id"
+          class="ds-tab"
+          :class="{ active: activeTab === t.id }"
+          @click="activeTab = t.id"
+        >{{ t.icon }} {{ t.label }}</button>
+      </nav>
+
+      <section class="ds-content">
+        <!-- Chung & Trải nghiệm -->
+        <div v-if="activeTab === 'general'">
+          <div class="ds-card">
+            <div class="ds-card-head"><div>⏱ <strong>Âm thanh đếm ngược</strong><small>Áp dụng cho mọi lượt chụp của máy này.</small></div></div>
+            <div class="ds-body">
+              <label class="ds-label">THỜI GIAN ĐẾM NGƯỢC (GIÂY)</label>
+              <p class="ds-hint">Dùng một thời gian cho mọi lượt chụp. Mặc định 10 giây.</p>
+              <div class="ds-row">
+                <button @click="countdownSeconds = Math.max(3, countdownSeconds - 1)">−</button>
+                <input type="number" v-model.number="countdownSeconds" style="width:80px; text-align:center;" />
+                <button @click="countdownSeconds = countdownSeconds + 1">+</button>
+                <span>giây</span>
+                <span style="margin-left:auto; font-size:12px; color:#999;">MỐC NHANH:</span>
+                <button v-for="v in [5,8,10,15]" :key="v" class="ds-pill" :class="{ on: countdownSeconds === v }" @click="countdownSeconds = v">{{ v }}s</button>
+              </div>
+              <label class="ds-toggle"><input type="checkbox" v-model="enableDefaultBeep" /><span></span><div><strong>Bật tiếng tít tít mặc định</strong><small>Dùng tiếng tít khi chưa có MP3.</small></div></label>
+              <div class="ds-divider"></div>
+              <label class="ds-label">MP3 ĐẾM NGƯỢC TÙY CHỈNH <span style="float:right; font-weight:400;">Tối đa 10 MB (.mp3)</span></label>
+              <div class="ds-upload">
+                <p>Chưa có MP3 tùy chỉnh. Ứng dụng sẽ phát tiếng bíp mặc định.</p>
+                <label class="ds-btn-pink">⬆ Thêm MP3 <input type="file" accept="audio/mpeg" hidden @change="onCountdownMp3" /></label>
+                <p v-if="customCountdownMp3" class="ds-hint">Đã có MP3 tùy chỉnh.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="ds-card">
+            <div class="ds-card-head"><div>⚙ <strong>Hành vi chụp</strong><small>Chọn cách app chụp và xử lý ảnh.</small></div></div>
+            <div class="ds-body">
+              <label class="ds-toggle"><input type="checkbox" v-model="hideSettingsButton" /><span></span><div><strong>Bảo vệ nút góc (Ẩn mở)</strong><small>Làm mờ nút Cài đặt và Tắt app ở trang chủ.</small></div></label>
+              <label class="ds-toggle"><input type="checkbox" v-model="manualCapture" /><span></span><div><strong>Chế độ bấm để chụp (không đếm ngược)</strong><small>Khách tự nhấn nút chụp.</small></div></label>
+              <label class="ds-toggle"><input type="checkbox" v-model="autoFillAfterCapture" /><span></span><div><strong>Tự động chèn ảnh vào ô sau khi chụp</strong><small>Điền ảnh vào khung theo thứ tự.</small></div></label>
+              <label class="ds-toggle"><input type="checkbox" v-model="allowRetake" /><span></span><div><strong>Cho phép khách chụp lại</strong><small>Cho khách chụp lại ảnh vừa chụp.</small></div></label>
+
+              <label class="ds-label" style="margin-top:12px;">Kích thước ô ảnh xem trước</label>
+              <div class="ds-row"><input type="range" min="50" max="150" v-model.number="previewScale" style="flex:1;" /><strong>{{ previewScale }}%</strong></div>
+              <label class="ds-label">Kích thước nút X chụp lại</label>
+              <div class="ds-row"><input type="range" min="50" max="150" v-model.number="retakeBtnScale" style="flex:1;" /><strong>{{ retakeBtnScale }}%</strong></div>
+
+              <label class="ds-toggle"><input type="checkbox" v-model="autoStartCountdown" /><span></span><div><strong>Tự bắt đầu chụp</strong><small>Tự kích hoạt sau thời gian chờ.</small></div></label>
+              <label class="ds-toggle"><input type="checkbox" v-model="allowCancelOnPrint" /><span></span><div><strong>Cho phép hủy phiên trên màn hình in</strong><small>Khách có thể hủy phiên chụp.</small></div></label>
+              <label class="ds-toggle"><input type="checkbox" v-model="skipPrintConfirm" /><span></span><div><strong>Bỏ qua thao tác ấn in ảnh trang cuối</strong><small>Tự in khi ảnh đã chọn.</small></div></label>
+              <label class="ds-toggle"><input type="checkbox" v-model="autoSwitchToPrint" /><span></span><div><strong>Tự động chuyển sang màn in</strong><small>Áp dụng ở màn hoàn thiện ảnh.</small></div></label>
+
+              <div class="ds-divider"></div>
+              <label class="ds-label">Cấu hình số ảnh chụp theo số ô</label>
+              <p class="ds-hint">Mặc định: Chụp đúng số ô của khung (VD: Frame 4 ô thì chụp 4 ảnh).</p>
+
+              <label class="ds-label">Ngôn ngữ / Language</label>
+              <div class="ds-row">
+                <button class="ds-lang" :class="{ on: language === 'vi' }" @click="language = 'vi'"><strong>VN</strong> Tiếng Việt</button>
+                <button class="ds-lang" :class="{ on: language === 'en' }" @click="language = 'en'"><strong>GB</strong> English</button>
+              </div>
+
+              <label class="ds-label">Cấu hình kỹ thuật: Mô hình chụp</label>
+              <div class="ds-row">
+                <button class="ds-mode" :class="{ on: mode === 'photobooth' }" @click="mode = 'photobooth'">📷 Photobooth — Khách chọn layout, chụp theo ô, chọn filter/frame.</button>
+                <button class="ds-mode" :class="{ on: mode === 'selfbooth' }" @click="mode = 'selfbooth'">⊘ Selfbooth — Phiên chụp tự do.</button>
+              </div>
+              <p class="ds-hint">Máy đang chạy Photobooth.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Làm đẹp AI -->
+        <div v-if="activeTab === 'beauty'">
+          <div class="ds-note">✨ Hiệu ứng làm đẹp được dùng khi chụp bằng Photobooth.</div>
+          <div class="ds-card">
+            <div class="ds-body grid2">
+              <label class="ds-toggle"><input type="checkbox" v-model="beautySkin" /><span></span><div><strong>Bật làm mịn da (AI Skin Smoothing)</strong></div></label>
+              <label class="ds-toggle"><input type="checkbox" v-model="beautyTone" /><span></span><div><strong>Bật làm sáng da (AI Tone-up)</strong></div></label>
+              <label class="ds-toggle"><input type="checkbox" v-model="beautyBlush" /><span></span><div><strong>Bật má hồng</strong></div></label>
+              <label class="ds-toggle"><input type="checkbox" v-model="beautyLip" /><span></span><div><strong>Bật son môi</strong></div></label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter -->
+        <div v-if="activeTab === 'filter'">
+          <div class="ds-card">
+            <div class="ds-card-head"><div>🎨 <strong>Quản lý Filter (Nâng cao)</strong><small>Thêm filter màu .cube cho ảnh.</small></div><button class="ds-btn-pink" @click="triggerCube">+ Thêm file .cube</button></div>
+            <div class="ds-body">
+              <div class="ds-info">File .cube là gì? File .cube (3D LUT) chứa thông số thay đổi màu sắc chuyên nghiệp.</div>
+              <input id="cubeInput" type="file" accept=".cube" multiple hidden @change="onCubeFile" />
+              <div class="ds-upload" @click="triggerCube">⬆ Bấm để tải ảnh thử màu</div>
+              <div>
+                <label class="ds-label">DANH SÁCH FILTER ĐÃ CÀI</label>
+                <div v-if="filters.length === 0" class="ds-empty">Chưa có filter nào.</div>
+                <div v-else class="ds-row"><span v-for="f in filters" :key="f" class="ds-pill">{{ f }} <button @click="removeFilter(f)">×</button></span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Frame & Layout -->
+        <div v-if="activeTab === 'frame'">
+          <div class="ds-card">
+            <div class="ds-card-head"><div>▣ <strong>Quản lý Frame &amp; Layout</strong><small>Tạo layout và tải frame lên Web Panel.</small></div></div>
+            <div class="ds-body">
+              <div class="ds-info">Thực hiện trên Web Panel — mở Web Panel và đăng nhập tài khoản quản trị để tải frame.</div>
+              <div class="ds-row">
+                <button class="ds-btn-pink" @click="router.push('/my-frames')">Mở Frame của tôi</button>
+                <button class="ds-btn-gray" @click="router.push('/frame-library')">Kho frame dùng chung</button>
+              </div>
+              <p class="ds-hint">panel.local:8000 (admin)</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Giao diện -->
+        <div v-if="activeTab === 'ui'">
+          <div class="ds-card">
+            <div class="ds-body">
+              <p class="ds-hint">Thay đổi giao diện trên Web Panel: Cài đặt → Giao Diện &amp; Thương Hiệu.</p>
+              <button class="ds-btn-pink" @click="router.push('/my-frames')">Mở Web Panel để đổi giao diện</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Thiết bị Phần cứng -->
+        <div v-if="activeTab === 'hardware'">
+          <div class="ds-card">
+            <div class="ds-card-head"><div>📷 <strong>Cấu hình Máy ảnh</strong><small>Hỗ trợ Canon, Fujifilm và Webcam/Capture Card.</small></div><button class="ds-btn-gray" @click="load">↻ Tải lại</button></div>
+            <div class="ds-body">
+              <label class="ds-label">HÃNG CAMERA</label>
+              <div class="ds-row">
+                <button class="ds-vendor" :class="{ on: cameraVendor === 'canon' }" @click="cameraVendor = 'canon'">📷 Canon EOS</button>
+                <button class="ds-vendor" :class="{ on: cameraVendor === 'fujifilm' }" @click="cameraVendor = 'fujifilm'">🎬 Fujifilm</button>
+                <button class="ds-vendor" :class="{ on: cameraVendor === 'sony' }" @click="cameraVendor = 'sony'">📸 Sony Alpha</button>
+                <button class="ds-vendor" :class="{ on: cameraVendor === 'webcam' }" @click="cameraVendor = 'webcam'">🎥 Webcam / Card</button>
+              </div>
+              <label class="ds-label">CAMERA ƯU TIÊN</label>
+              <select v-model="selectedVideoSource" style="width:100%;">
+                <option value="">Tự động nhận diện</option>
+                <option v-for="d in videoDevices" :key="d.deviceId" :value="d.deviceId">{{ d.label || d.deviceId }}</option>
+              </select>
+              <div class="ds-info-warn">Canon: Nên để Tự động nhận diện nếu chỉ có một máy.</div>
+              <label class="ds-toggle"><input type="checkbox" v-model="mirror" /><span></span><div><strong>Lật ảnh (Mirror)</strong><small>Lật màn hình xem trước như camera selfie.</small></div></label>
+            </div>
+          </div>
+
+          <div class="ds-card">
+            <div class="ds-card-head"><div>🖨 <strong>Máy in</strong><small>Chọn máy in và chỉnh thông số in.</small></div><button class="ds-btn-gray" @click="load">↻ Tải lại</button></div>
+            <div class="ds-body">
+              <div class="ds-row">
+                <div style="flex:1;"><label class="ds-label">MÁY IN</label><select v-model="printerName" style="width:100%;"><option value="">-- chọn máy in --</option><option v-for="p in printers" :key="p" :value="p">{{ p }}</option></select><button class="ds-btn-gray" style="margin-top:6px;" @click="openPrefs">Mở tùy chọn máy in</button></div>
+                <div style="flex:1;"><label class="ds-label">MÁY IN STRIP (2x6)</label><select v-model="stripPrinter" style="width:100%;"><option value="">-- chọn máy in --</option><option v-for="p in printers" :key="'s'+p" :value="p">{{ p }}</option></select></div>
+                <div style="flex:1;"><label class="ds-label">MÁY IN FULL (4x6)</label><select v-model="fullPrinter" style="width:100%;"><option value="">-- chọn máy in --</option><option v-for="p in printers" :key="'f'+p" :value="p">{{ p }}</option></select></div>
+              </div>
+
+              <label class="ds-label">CĂN CHỈNH LỀ &amp; HƯỚNG IN</label>
+              <div class="ds-row">
+                <span>HƯỚNG GIẤY</span><span>LỆCH X</span><span>LỆCH Y</span>
+              </div>
+              <div class="ds-row">
+                <span style="flex:1;">Ngang (Ngang)</span>
+                <input type="number" v-model.number="offsetX" style="width:90px;" />
+                <input type="number" v-model.number="offsetY" style="width:90px;" />
+              </div>
+              <label class="ds-label">CĂN CHỈNH ZOOM</label>
+              <div class="ds-row"><input type="number" step="0.01" v-model.number="zoom" style="width:120px;" /><button class="ds-btn-gray" @click="zoom = 1">Đặt lại 1.0</button></div>
+
+              <div class="ds-divider"></div>
+              <label class="ds-label">Bộ đếm giấy</label>
+              <div class="ds-paper-bar"><div :style="{ width: paperPercent + '%' }"></div></div>
+              <div class="ds-row"><button class="ds-btn-gray" @click="paperLoaded = 400; paperRemaining = 400;">+ Nạp 400 tờ</button><button class="ds-btn-gray" @click="paperLoaded = 700; paperRemaining = 700;">+ Nạp 700 tờ</button></div>
+              <div class="ds-row">
+                <div><label class="ds-label">ĐÃ NẠP</label><input type="number" v-model.number="paperLoaded" style="width:90px;" /></div>
+                <div><label class="ds-label">CÒN LẠI</label><input type="number" v-model.number="paperRemaining" style="width:90px;" /></div>
+                <div><label class="ds-label">NGƯỠNG CẢNH BÁO</label><input type="number" v-model.number="warningThreshold" style="width:90px;" /></div>
+              </div>
+
+              <div class="ds-divider"></div>
+              <label class="ds-toggle"><input type="checkbox" v-model="allowCancelOnPreview" /><span></span><div><strong>Cho phép hủy ở preview in</strong></div></label>
+              <label class="ds-toggle"><input type="checkbox" v-model="autoPrintOnPreview" /><span></span><div><strong>Tự động in khi preview render xong</strong></div></label>
+              <label class="ds-toggle"><input type="checkbox" v-model="printQr" /><span></span><div><strong>In kèm mã QR (event mode tự tắt)</strong></div></label>
+
+              <label class="ds-label">QR của quán (Zalo)</label>
+              <input type="file" accept="image/*" @change="onShopQrFile" />
+              <button class="ds-btn-gray" @click="clearShopQr">Xóa</button>
+              <img v-if="shopQr" :src="shopQr" style="max-width:120px; display:block; margin-top:8px; border:1px solid #ccc;" />
+            </div>
+          </div>
+        </div>
+
+        <!-- In lại ảnh -->
+        <div v-if="activeTab === 'reprint'">
+          <div class="ds-card">
+            <div class="ds-card-head"><div>⎙ <strong>In lại ảnh</strong><small>Chọn ảnh đã chụp để in lại bản mới cho khách.</small></div></div>
+            <div class="ds-body">
+              <div class="ds-empty">Không có ảnh print_ready nào.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sự kiện -->
+        <div v-if="activeTab === 'event'">
+          <div class="ds-card">
+            <div class="ds-card-head"><div>🗓 <strong>TRẠNG THÁI SỰ KIỆN</strong><small>{{ activeEventId ? 'Sự kiện đang hoạt động: ' + activeEventName : 'Chưa chọn sự kiện nào (Ảnh đang lưu bình thường)' }}</small></div></div>
+          </div>
+          <div class="ds-card">
+            <div class="ds-card-head"><div><span style="background:#8b5cf6; color:#fff; border-radius:8px; padding:4px 8px;">+</span> <strong>Tạo sự kiện mới</strong><small>Nhập tên sự kiện để ảnh và video của khách được lưu riêng vào một thư mục.</small></div></div>
+            <div class="ds-body">
+              <div class="ds-row" style="margin-top:8px;">
+                <input v-model="eventName" placeholder="Ví dụ: Đám cưới Anh &amp; Lan 28/10" style="flex:1;" />
+                <button class="ds-btn-pink" :disabled="eventLoading" @click="createEvent">＋ Tạo sự kiện &amp; Bắt đầu chụp</button>
+              </div>
+              <p v-if="eventStatus" class="ds-hint">{{ eventStatus }}</p>
+            </div>
+          </div>
+          <div class="ds-card">
+            <div class="ds-card-head"><div><strong>DANH SÁCH SỰ KIỆN ĐÃ TẠO</strong><small>Bạn có thể kích hoạt lại sự kiện cũ bất kỳ lúc nào.</small></div><span class="ds-chip">{{ events.length }} sự kiện</span></div>
+            <div class="ds-body">
+              <div v-if="events.length === 0" class="ds-empty">Chưa có sự kiện nào. Hãy tạo sự kiện đầu tiên ở trên!</div>
+              <div v-for="ev in events" :key="ev.id" class="ds-row" style="border:1px solid #eee; padding:8px; border-radius:8px;">
+                <strong style="flex:1;">{{ ev.name }}</strong>
+                <span class="ds-chip">{{ ev.status === 1 ? 'Đang diễn ra' : 'Hoàn thành' }}</span>
+                <button class="ds-btn-pink" @click="activateEvent(ev)">Kích hoạt</button>
+                <button class="ds-btn-gray" @click="deleteEvent(ev)">Xóa</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hoạt động & Đồng bộ -->
+        <div v-if="activeTab === 'sync'">
+          <div class="ds-note-warn">
+            <strong>Lưu ý quan trọng khi chạy sự kiện:</strong>
+            <ul>
+              <li>Cần có mạng lần đầu để đồng bộ dữ liệu (frame, layout, cài đặt).</li>
+              <li>Ưu tiên khởi động offline, không chờ kiểm tra mạng.</li>
+              <li>Khi mất mạng: bật 'Tự tắt thanh toán khi mất mạng' để khách vẫn chụp miễn phí.</li>
+            </ul>
+          </div>
+          <div class="ds-card">
+            <div class="ds-card-head"><div>☁ <strong>Đồng bộ &amp; Mạng</strong><small>Cài mạng, đồng bộ và ảnh lưu trên máy.</small></div><div class="ds-row"><button class="ds-btn-pink">Kiểm tra &amp; đồng bộ media</button><button class="ds-btn-gray">Dọn ảnh local</button><button class="ds-btn-gray">Xóa cache</button></div></div>
+            <div class="ds-body">
+              <label class="ds-toggle"><input type="checkbox" v-model="cloudSync" /><span></span><div><strong>Cho phép đồng bộ đám mây</strong><small>Bật để khách lấy ảnh bằng QR.</small></div></label>
+              <label class="ds-toggle"><input type="checkbox" v-model="offlineFirst" /><span></span><div><strong>Ưu tiên khởi động offline</strong><small>Mở app ở chế độ offline, không chờ kiểm tra mạng.</small></div></label>
+              <label class="ds-toggle"><input type="checkbox" v-model="disablePaymentOffline" /><span></span><div><strong>Tự tắt thanh toán khi mất mạng</strong><small>Mất mạng thì cho khách chụp miễn phí.</small></div></label>
+
+              <div class="ds-row" style="margin-top:12px;">
+                <div class="ds-stat">LAYOUTS<strong>2</strong></div>
+                <div class="ds-stat">DANH MỤC<strong>2</strong></div>
+                <div class="ds-stat">FILTERS<strong>{{ filters.length }}</strong></div>
+                <div class="ds-stat">KHUNG HÌNH<strong>{{ events.length + (themesCount()) }}</strong></div>
+              </div>
+
+              <label class="ds-label">HÀNG CHỜ ĐỒNG BỘ ĐÁM MÂY</label>
+              <div class="ds-row">
+                <span class="ds-stat warn">CHỜ XỬ LÝ<strong>{{ queueStats.pending }}</strong></span>
+                <span class="ds-stat blue">ĐANG TẢI<strong>{{ queueStats.uploading }}</strong></span>
+                <span class="ds-stat red">THẤT BẠI<strong>{{ queueStats.failed }}</strong></span>
+                <span class="ds-stat green">HOÀN TẤT<strong>{{ queueStats.done }}</strong></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Kết nối & Bản quyền -->
+        <div v-if="activeTab === 'license'">
+          <div class="ds-card">
+            <div class="ds-card-head"><div>🔑 <strong>Kết nối &amp; Bản quyền</strong><small>Kiểm tra kết nối và bản quyền của máy.</small></div><button class="ds-btn-pink">Kiểm tra bản quyền</button></div>
+            <div class="ds-body">
+              <label class="ds-label">MACHINE API KEY</label>
+              <input v-model="machineApiKey" placeholder="hihi_machine_xxxxxxxxxxxx" style="width:100%;" />
+              <div class="ds-info">Máy đang kết nối bằng bản dùng thử.</div>
+              <label class="ds-label">DEVICE ID</label>
+              <input :value="deviceId" readonly style="width:100%; font-family:monospace;" />
+              <div class="ds-divider"></div>
+              <p class="ds-label">THÔNG TIN BẢN QUYỀN &amp; MÁY</p>
+              <p>KHÁCH HÀNG: Admin · TRẠNG THÁI: ACTIVE · HẠN: 2026 · MÁY: ACTIVE</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cập nhật -->
+        <div v-if="activeTab === 'update'">
+          <div class="ds-card"><div class="ds-body">Đã là bản mới nhất (v12.0.8).</div></div>
+        </div>
+
+        <!-- Liên hệ -->
+        <div v-if="activeTab === 'contact'">
+          <div class="ds-card">
+            <div class="ds-body">
+              <p><strong>HiHiBooth</strong> — Phiên bản v12.0.8</p>
+              <p>SDT / ZALO: 0985.626.893</p>
+              <p>MỞ PANEL ADMIN — xem docs</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <footer class="ds-footer">
+        <button class="ds-btn-gray" @click="save">☁ Đồng bộ cấu hình</button>
+        <button class="ds-btn-pink" @click="save">💾 Lưu cài đặt</button>
+      </footer>
+      <p v-if="status" style="margin:8px 16px; color:green;">{{ status }}</p>
+    </main>
   </div>
 </template>
+
+<style scoped>
+.ds-root { display:flex; height:100vh; font-family:Segoe UI, sans-serif; color:#222; background:#f5f7f5; }
+.ds-sidebar { width:230px; background:#15182a; color:#fff; display:flex; flex-direction:column; flex-shrink:0; }
+.ds-brand { display:flex; gap:10px; padding:14px; align-items:center; }
+.ds-logo { width:36px; height:36px; background:#ff4d6d; border-radius:8px; display:grid; place-items:center; }
+.ds-brand-name { font-weight:800; }
+.ds-brand-sub { font-size:10px; opacity:0.6; letter-spacing:1px; }
+.ds-back { margin:0 14px 10px; background:#252a45; color:#fff; border:none; padding:9px; border-radius:8px; cursor:pointer; text-align:center; }
+.ds-top-actions { display:flex; gap:8px; margin:0 14px 12px; }
+.ds-refresh { flex:1; background:#3a2b00; color:#ffd54d; border:1px solid #7a5c00; padding:8px; border-radius:8px; cursor:pointer; font-size:12px; }
+.ds-power { width:36px; background:#5a1020; color:#ff5a7a; border:none; border-radius:8px; cursor:pointer; }
+.ds-group-title { font-size:10px; letter-spacing:1px; color:#7a80a0; margin:12px 14px 6px; }
+.ds-nav { display:flex; gap:8px; align-items:center; width:calc(100% - 16px); margin:2px 8px; padding:8px 10px; background:transparent; color:#c8cce0; border:none; border-radius:8px; cursor:pointer; text-align:left; font-size:13px; }
+.ds-nav:hover { background:#20243a; }
+.ds-nav.active { background:#ff4d6d; color:#fff; }
+.ds-sidebar-foot { margin-top:auto; padding:12px 14px; border-top:1px solid #252a45; font-size:11px; color:#8a90b0; }
+.ds-sidebar-foot .row { display:flex; justify-content:space-between; margin:4px 0; }
+.ds-main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+.ds-topbar { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:#fff; border-bottom:1px solid #e8ece8; }
+.ds-top-left { display:flex; gap:10px; align-items:center; }
+.ds-top-left h1 { margin:0; font-size:16px; }
+.ds-top-left p { margin:2px 0 0; font-size:12px; color:#888; }
+.ds-burger { border:1px solid #ddd; background:#fff; border-radius:8px; padding:6px 10px; }
+.ds-top-right { display:flex; gap:8px; align-items:center; }
+.ds-chip { font-size:11px; background:#f0f4f0; padding:6px 10px; border-radius:999px; border:1px solid #e0e6e0; }
+.ds-chip.green { background:#e6f5ea; color:#1a7f37; }
+.ds-chip.dark { background:#15182a; color:#fff; cursor:pointer; border:none; }
+.ds-tabs { display:flex; gap:6px; overflow-x:auto; padding:10px 16px; background:#fff; border-bottom:1px solid #e8ece8; }
+.ds-tab { white-space:nowrap; font-size:12px; padding:7px 12px; border-radius:999px; border:1px solid #e8ece8; background:#fff; cursor:pointer; }
+.ds-tab.active { background:#ff4d6d; color:#fff; border-color:#ff4d6d; }
+.ds-content { flex:1; overflow:auto; padding:16px; }
+.ds-card { background:#fff; border:1px solid #e8ece8; border-radius:14px; margin-bottom:14px; overflow:hidden; }
+.ds-card-head { display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid #f0f0f0; }
+.ds-card-head small { display:block; color:#888; font-size:12px; margin-top:2px; }
+.ds-body { padding:14px 16px; }
+.ds-label { font-size:11px; font-weight:800; letter-spacing:0.06em; color:#555; display:block; margin:10px 0 6px; }
+.ds-hint { font-size:12px; color:#888; }
+.ds-row { display:flex; gap:10px; align-items:center; margin:8px 0; flex-wrap:wrap; }
+.ds-pill { font-size:11px; padding:4px 10px; border-radius:999px; border:1px solid #ddd; background:#fff; cursor:pointer; }
+.ds-pill.on { background:#ff4d6d; color:#fff; border-color:#ff4d6d; }
+.ds-toggle { display:flex; gap:10px; align-items:center; padding:10px; border:1px solid #eef0ee; border-radius:10px; margin:8px 0; cursor:pointer; }
+.ds-toggle input { display:none; }
+.ds-toggle span { width:36px; height:20px; background:#ddd; border-radius:999px; position:relative; flex-shrink:0; }
+.ds-toggle span::after { content:''; position:absolute; width:16px; height:16px; background:#fff; border-radius:50%; top:2px; left:2px; transition:0.2s; }
+.ds-toggle input:checked + span { background:#ff4d6d; }
+.ds-toggle input:checked + span::after { left:18px; }
+.ds-toggle small { display:block; color:#888; font-size:11px; }
+.ds-divider { border-top:1px solid #eee; margin:14px 0; }
+.ds-info { background:#eaf2ff; color:#2563eb; padding:10px 12px; border-radius:8px; font-size:12px; margin:8px 0; }
+.ds-info-warn { background:#fff7e0; color:#92600a; padding:10px 12px; border-radius:8px; font-size:12px; margin:8px 0; }
+.ds-note { background:#f3e8ff; color:#6b21a8; padding:10px 12px; border-radius:8px; margin-bottom:12px; font-size:13px; }
+.ds-note-warn { background:#fff7e0; border:1px solid #fde68a; padding:12px; border-radius:12px; margin-bottom:12px; font-size:13px; }
+.ds-note-warn ul { margin:6px 0 0; padding-left:20px; }
+.ds-upload { border:2px dashed #ddd; border-radius:12px; padding:22px; text-align:center; color:#999; cursor:pointer; margin:8px 0; }
+.ds-empty { text-align:center; color:#aaa; padding:18px; border:1px solid #eee; border-radius:10px; }
+.ds-btn-pink { background:#ff4d6d; color:#fff; border:none; padding:9px 16px; border-radius:8px; cursor:pointer; font-weight:700; }
+.ds-btn-gray { background:#f0f0f0; border:1px solid #ddd; padding:8px 14px; border-radius:8px; cursor:pointer; }
+.ds-vendor { flex:1; padding:12px; border:1px solid #ddd; border-radius:10px; background:#fff; cursor:pointer; text-align:center; }
+.ds-vendor.on { border-color:#3b82f6; background:#eff6ff; color:#2563eb; }
+.ds-lang, .ds-mode { flex:1; padding:12px; border:1px solid #ddd; border-radius:10px; background:#fff; cursor:pointer; text-align:left; }
+.ds-lang.on, .ds-mode.on { border-color:#ff4d6d; background:#fff0f3; color:#ff4d6d; }
+.ds-paper-bar { height:10px; background:#e5e7eb; border-radius:999px; overflow:hidden; margin:8px 0; }
+.ds-paper-bar > div { height:100%; background:#10b981; }
+.ds-stat { flex:1; border:1px solid #eee; border-radius:10px; padding:12px; font-size:11px; color:#888; display:flex; flex-direction:column; gap:4px; }
+.ds-stat strong { font-size:18px; color:#222; }
+.ds-stat.warn strong { color:#b45309; } .ds-stat.blue strong { color:#2563eb; } .ds-stat.red strong { color:#dc2626; } .ds-stat.green strong { color:#16a34a; }
+.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.ds-footer { display:flex; justify-content:flex-end; gap:10px; padding:12px 16px; background:#fff; border-top:1px solid #e8ece8; }
+</style>

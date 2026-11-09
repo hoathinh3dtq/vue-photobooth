@@ -16,6 +16,42 @@ export interface AppSettings {
   autoPrintOnPreview: boolean
   printQr: boolean
   shopQr: string
+  // Chung & Trải nghiệm
+  countdownSeconds: number
+  enableDefaultBeep: boolean
+  customCountdownMp3: string
+  hideSettingsButton: boolean
+  manualCapture: boolean
+  autoFillAfterCapture: boolean
+  allowRetake: boolean
+  previewScale: number
+  retakeBtnScale: number
+  autoStartCountdown: boolean
+  allowCancelOnPrint: boolean
+  skipPrintConfirm: boolean
+  autoSwitchToPrint: boolean
+  photoCountRules: string
+  language: 'vi' | 'en'
+  mode: 'photobooth' | 'selfbooth'
+  // Làm đẹp AI
+  beautySkin: boolean
+  beautyTone: boolean
+  beautyBlush: boolean
+  beautyLip: boolean
+  // Filter
+  filters: string[]
+  // Camera / Hardware
+  cameraVendor: string
+  cameraId: string
+  mirror: boolean
+  // Đồng bộ & Offline
+  cloudSync: boolean
+  offlineFirst: boolean
+  disablePaymentOffline: boolean
+  // Bản quyền
+  machineApiKey: string
+  activeEventId: string
+  activeEventName: string
 }
 
 const DEFAULTS: AppSettings = {
@@ -32,6 +68,36 @@ const DEFAULTS: AppSettings = {
   autoPrintOnPreview: false,
   printQr: true,
   shopQr: '',
+  countdownSeconds: 10,
+  enableDefaultBeep: true,
+  customCountdownMp3: '',
+  hideSettingsButton: false,
+  manualCapture: false,
+  autoFillAfterCapture: false,
+  allowRetake: true,
+  previewScale: 100,
+  retakeBtnScale: 100,
+  autoStartCountdown: false,
+  allowCancelOnPrint: true,
+  skipPrintConfirm: false,
+  autoSwitchToPrint: false,
+  photoCountRules: '',
+  language: 'vi',
+  mode: 'photobooth',
+  beautySkin: false,
+  beautyTone: false,
+  beautyBlush: false,
+  beautyLip: false,
+  filters: [],
+  cameraVendor: 'canon',
+  cameraId: '',
+  mirror: true,
+  cloudSync: true,
+  offlineFirst: false,
+  disablePaymentOffline: false,
+  machineApiKey: '',
+  activeEventId: '',
+  activeEventName: '',
 }
 
 let state: AppSettings = { ...DEFAULTS }
