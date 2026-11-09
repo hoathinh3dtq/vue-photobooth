@@ -5,8 +5,8 @@ const isTauri = typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in windo
 
 async function tauriInvoke(cmd: string, args?: Record<string, unknown>) {
   try {
-    // @ts-expect-error optional Tauri dep (only present in tauri-booth)
-    const mod: any = await import('@tauri-apps/api/core').catch(() => null)
+    // Tauri shell injected by Rust WebView2 - no static import (keeps Vite/Electron build clean)
+    const mod: any = (window as any).__TAURI__?.core || null
     if (mod?.invoke) return await mod.invoke(cmd, args)
     const g: any = window as any
     if (g.__TAURI_INTERNALS__?.invoke) return await g.__TAURI_INTERNALS__.invoke(cmd, args)
