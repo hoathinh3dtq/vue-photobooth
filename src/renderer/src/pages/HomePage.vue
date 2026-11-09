@@ -94,9 +94,9 @@ function goMyFrames(): void {
       type="button"
       aria-label="Frame của tôi"
       @click="goMyFrames"
-      style="right: 7vw; top: 7vh; font-size: 14px;"
+      style="right: 7vw; top: 7vh; font-size: 12px; width: auto; padding: 0 12px;"
     >
-      🖼
+      + Frame
     </button>
 
 
