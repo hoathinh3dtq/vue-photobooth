@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { STORAGE_URL } from '../lib/api/client'
 import { uploadFrame, deleteAllFrames, bulkVisibility } from '../lib/api/frames'
+import QREditor from '../components/QREditor.vue'
 
 interface FrameHole { x: number; y: number; w: number; h: number; orientation: string }
 interface FrameMeta { holes: FrameHole[]; fw: number; fh: number }
@@ -145,6 +146,7 @@ async function upload() {
   if (detected.value.holes.length === 0) { status.value = 'Không có lỗ, không thể upload.'; return }
   uploading.value = true
   try {
+    const eventId = localStorage.getItem('event_id')
     await uploadFrame(selectedFile.value, {
       name: frameName.value || selectedFile.value.name,
       shape: frameShape.value,
@@ -153,6 +155,7 @@ async function upload() {
       qrY: 0,
       qrSize: 200,
       enableOverlay: true,
+      eventId: eventId || null,
     })
     status.value = 'Upload thành công!'
     selectedFile.value = null
@@ -194,7 +197,7 @@ async function saveQr(frame: any) {
     await fetch(`${host}/api/frames/${frame.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ qr_x: frame.qr_x, qr_y: frame.qr_y, qr_size: frame.qr_size }),
+      body: JSON.stringify({ qr_x: frame.qr_x, qr_y: frame.qr_y, qr_size: frame.qr_size, enable_overlay: frame.enable_overlay }),
     })
     status.value = 'Đã lưu QR.'
   } catch (e) { status.value = String(e) }
@@ -274,11 +277,15 @@ onMounted(() => { void loadFrames() })
         <div style="flex:1;">
           <div><strong>{{ f.name }}</strong></div>
           <div style="font-size:12px; color:#666;">{{ f.frame_shape }} · {{ (f.holes_metadata?.holes?.length) || 0 }} lỗ · {{ f.is_active ? 'active' : 'inactive' }}</div>
-          <div style="font-size:11px; margin-top:4px; display:flex; gap:6px; align-items:center;">
-            <label>QR x:</label><input type="number" v-model.number="f.qr_x" style="width:50px;" />
-            <label>y:</label><input type="number" v-model.number="f.qr_y" style="width:50px;" />
-            <label>size:</label><input type="number" v-model.number="f.qr_size" style="width:50px;" />
-            <button @click="saveQr(f)" style="font-size:11px;">Lưu QR</button>
+          <div style="margin-top:8px;">
+            <QREditor
+              :model-value="{ enabled: f.enable_overlay ?? true, x: f.qr_x ?? 0, y: f.qr_y ?? 0, size: f.qr_size ?? 200 }"
+              :image-url="f.image_path ? (import.meta.env.VITE_API_HOST||'http://127.0.0.1:8000')+'/'+f.image_path : ''"
+              :fw="f.holes_metadata?.fw || 1200"
+              :fh="f.holes_metadata?.fh || 3600"
+              @update:model-value="(val) => { f.qr_x = val.x; f.qr_y = val.y; f.qr_size = val.size; f.enable_overlay = val.enabled; }"
+            />
+            <button @click="saveQr(f)" style="font-size:11px; margin-top:6px;">Lưu QR</button>
           </div>
         </div>
         <button @click="toggleActive(f)">{{ f.is_active ? 'Tắt' : 'Bật' }}</button>

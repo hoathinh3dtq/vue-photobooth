@@ -23,6 +23,11 @@ const router = createRouter({
       component: () => import('../pages/SelectTypePage.vue'),
     },
     {
+      path: '/select-frame',
+      name: 'select-frame',
+      component: () => import('../pages/SelectFramePage.vue'),
+    },
+    {
       path: '/camera',
       name: 'camera',
       component: () => import('../pages/CameraPage.vue'),

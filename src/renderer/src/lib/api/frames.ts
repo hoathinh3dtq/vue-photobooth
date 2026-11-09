@@ -69,6 +69,7 @@ export interface UploadFrameOptions {
   qrY?: number | null
   qrSize?: number | null
   enableOverlay?: boolean
+  eventId?: number | string | null
 }
 
 /**
@@ -86,6 +87,9 @@ export async function uploadFrame(file: File, options: UploadFrameOptions): Prom
   }
   if (options.layoutId != null && options.layoutId !== '') {
     fd.append('layout_id', String(options.layoutId))
+  }
+  if (options.eventId != null && options.eventId !== '') {
+    fd.append('event_id', String(options.eventId))
   }
 
   fd.append('holes_metadata', JSON.stringify(options.holes))
