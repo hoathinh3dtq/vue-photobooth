@@ -84,9 +84,9 @@ function goMyFrames(): void {
       type="button"
       aria-label="Cài đặt"
       @click="goSettings"
-      style="right: 2.5vw;"
+      style="right: 2.5vw; width: auto; padding: 0 14px; font-size: 14px;"
     >
-      ⚙
+      ⚙ Cài đặt
     </button>
     <button
       class="hb-logout"
