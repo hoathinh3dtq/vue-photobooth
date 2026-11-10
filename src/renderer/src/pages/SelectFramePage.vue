@@ -17,6 +17,7 @@ interface FrameItem {
   holes_metadata?: { holes: Hole[]; fw: number; fh: number } | null
   category_id?: number | string | null
   is_active?: boolean | number | string
+  enable_overlay?: boolean | number | string
 }
 
 const frames = ref<FrameItem[]>([])
@@ -128,6 +129,7 @@ async function confirmFrame() {
       holes,
       fw: previewMeta.value.fw,
       fh: previewMeta.value.fh,
+      enable_overlay: f.enable_overlay ?? true,
     }))
   } catch {}
   selectionStore.selectedTheme = `frame-${f.id}`

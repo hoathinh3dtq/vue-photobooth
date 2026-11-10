@@ -34,6 +34,9 @@ const captureStarted = ref(false)
 const webcamReady = ref(false)
 const useCanonLiveView = ref(false)
 const canonPreviewSrc = ref('')
+const frameOverlayUrl = ref('')
+const frameOverlayVisible = ref(false)
+const frameOverlayRef = ref<HTMLImageElement | null>(null)
 const canonPreviewRef = ref<HTMLImageElement | null>(null)
 const useHdmiPreview = ref(false)
 const hdmiDeviceId = ref<string | null>(null)
@@ -44,7 +47,17 @@ const selectedVideoSource = ref('')
 let canonLiveViewGeneration = 0
 let canonLiveViewTimer: ReturnType<typeof setTimeout> | null = null
 
-const totalTake = computed(() => flowStore.flow.camera.totalTake())
+const totalTake = computed(() => {
+  try {
+    const raw = localStorage.getItem('frame_selected')
+    if (raw) {
+      const f = JSON.parse(raw)
+      const holes = Array.isArray(f?.holes) ? f.holes : []
+      if (holes.length > 0) return holes.length
+    }
+  } catch { /* ignore */ }
+  return flowStore.flow.camera.totalTake()
+})
 const maxRetake = computed(() => configStore.config?.re_take ?? 2)
 const timeTake = computed(() => configStore.config?.time_to_take ?? 3)
 
@@ -999,6 +1012,18 @@ onMounted(async () => {
     connected = false
   }
   canonConnected.value = connected
+  // Frame overlay (spec: enable_overlay — hiện frame lên Live View để căn khung)
+  try {
+    const raw = localStorage.getItem('frame_selected')
+    if (raw) {
+      const f = JSON.parse(raw)
+      if (f && f.url && (f.enable_overlay === true || f.enable_overlay === 1 || f.enable_overlay === '1' || f.enable_overlay === 'true')) {
+        frameOverlayUrl.value = String(f.url)
+        frameOverlayVisible.value = true
+        console.log('[camera] frame overlay on (enable_overlay)')
+      }
+    }
+  } catch { /* ignore */ }
   const hdmiDevice = await loadVideoDevices().catch(() => null)
   selectedVideoSource.value = hdmiDevice || ''
   await applyPreviewSource(selectedVideoSource.value || null)
@@ -1132,6 +1157,14 @@ onBeforeUnmount(() => {
   style="width: 100%; height: 100%; object-fit: cover; display: block; transition: none;"
 />
 <video v-else id="video" ref="videoRef" autoplay playsinline muted></video>
+        <img
+          v-if="frameOverlayVisible && frameOverlayUrl"
+          id="frame-overlay"
+          ref="frameOverlayRef"
+          :src="frameOverlayUrl"
+          alt=""
+          style="position:absolute; inset:0; width:100%; height:100%; object-fit:contain; z-index:15; pointer-events:none;"
+        />
         <span class="vf-corner vf-tl" aria-hidden="true"></span>
         <span class="vf-corner vf-tr" aria-hidden="true"></span>
         <span class="vf-corner vf-bl" aria-hidden="true"></span>

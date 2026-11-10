@@ -279,6 +279,7 @@ onMounted(() => { void loadFrames() })
         <div v-for="f in frames" :key="f.id" class="mf-tile" :class="{ selected: selectedId === f.id }" @click="selectedId = f.id">
           <img :src="frameImgUrl(f)" :alt="f.name" />
           <span class="mf-badge">{{ f.holes_metadata?.holes?.length || 0 }}</span>
+          <span class="mf-badge mf-badge-overlay" v-if="f.enable_overlay">Overlay: Bật</span>
           <div class="mf-tile-name">{{ f.name }}</div>
           <div class="mf-tile-foot">
             <span class="mf-pill" :class="{ on: f.is_active }">{{ f.is_active ? 'On' : 'Off' }}</span>
@@ -350,7 +351,8 @@ onMounted(() => { void loadFrames() })
 .mf-tile:hover { border-color:#f4b4cb; transform: translateY(-2px); }
 .mf-tile.selected { border-color:#f2719b; box-shadow: 0 0 0 3px #f2719b44; }
 .mf-tile img { width:100%; aspect-ratio: 1/3; object-fit:cover; border-radius:10px; }
-.mf-badge { position:absolute; top:14px; right:14px; background:#f2719b; color:#fff; font-size:11px; border-radius:999px; padding:2px 8px; font-weight:800; }
+.mf-badge-overlay { position:absolute; top:40px; right:14px; background:#3b82f6; color:#fff; font-size:10px; border-radius:999px; padding:2px 8px; font-weight:800; }
+.mf-tile .mf-badge { position:absolute; top:14px; right:14px; background:#f2719b; color:#fff; font-size:11px; border-radius:999px; padding:2px 8px; font-weight:800; }
 .mf-tile-name { margin-top:8px; font-size:12px; color:#555; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .mf-tile-foot { display:flex; justify-content:space-between; align-items:center; margin-top:6px; }
 .mf-pill { font-size:10px; padding:2px 8px; border-radius:999px; background:#eee; color:#888; }
