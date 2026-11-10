@@ -35,12 +35,22 @@ const previewStyle = computed(() => {
   }
 })
 function clamp(n: number) { return Math.max(0, Math.min(100, n)) }
+
+function onToggle(event: Event) {
+  const input = event.target as HTMLInputElement
+  const turningOn = input.checked
+  if (turningOn) {
+    const ok = window.confirm('Bật frame trên Live View?\nFrame sẽ che mặt Live View — chỉ bật khi cần căn khung khi chụp.')
+    if (!ok) { input.checked = false; return }
+  }
+  update({ enabled: turningOn })
+}
 </script>
 
 <template>
   <div class="qr-editor">
     <label class="qr-toggle">
-      <input type="checkbox" :checked="v.enabled" @change="update({ enabled: ($event.target as HTMLInputElement).checked })" />
+      <input type="checkbox" :checked="v.enabled" @change="onToggle($event)" />
       <span></span> Bật QR
     </label>
 
