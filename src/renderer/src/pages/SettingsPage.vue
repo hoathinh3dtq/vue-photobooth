@@ -410,7 +410,7 @@ function removeFilter(name: string) { filters.value = filters.value.filter(f => 
 
 async function openPrefs() {
   try {
-    await (window as any).electronAPI?.printer?.openPreferences?.(printerName.value || stripPrinter.value)
+    await (window as any).electronAPI?.printer?.openPreferences?.(stripPrinter.value || fullPrinter.value || printerName.value)
   } catch (e) { status.value = 'Lỗi mở preferences: ' + String(e) }
 }
 
@@ -709,11 +709,10 @@ onMounted(() => { void load() })
             <div class="ds-card-head"><div>🖨 <strong>Máy in</strong><small>Chọn máy in và chỉnh thông số in.</small></div><button class="ds-btn-gray" @click="load">↻ Tải lại</button></div>
             <div class="ds-body">
               <div class="ds-row">
-                <div style="flex:1;"><label class="ds-label">MÁY IN</label><select v-model="printerName" style="width:100%;"><option value="">-- chọn máy in --</option><option v-for="p in printers" :key="p" :value="p">{{ p }}</option></select><button class="ds-btn-gray" style="margin-top:6px;" @click="openPrefs">Mở tùy chọn máy in</button></div>
                 <div style="flex:1;"><label class="ds-label">MÁY IN STRIP (2x6)</label><select v-model="stripPrinter" style="width:100%;"><option value="">-- chọn máy in --</option><option v-for="p in printers" :key="'s'+p" :value="p">{{ p }}</option></select><button class="ds-btn-gray" style="margin-top:6px;" @click="detectPrinter('strip')">Tự nhận diện</button><small class="ds-hint" v-if="detectedStrip">→ {{ detectedStrip }}</small></div>
                 <div style="flex:1;"><label class="ds-label">MÁY IN FULL (4x6)</label><select v-model="fullPrinter" style="width:100%;"><option value="">-- chọn máy in --</option><option v-for="p in printers" :key="'f'+p" :value="p">{{ p }}</option></select><button class="ds-btn-gray" style="margin-top:6px;" @click="detectPrinter('full')">Tự nhận diện</button><small class="ds-hint" v-if="detectedFull">→ {{ detectedFull }}</small></div>
               </div>
-              <div class="ds-row" style="margin-top:8px;"><button class="ds-btn-pink" @click="autoDetectPrinters">🪄 Tự nhận diện cả hai máy in</button></div>
+              <div class="ds-row" style="margin-top:8px;"><button class="ds-btn-pink" @click="autoDetectPrinters">🪄 Tự nhận diện cả hai máy in</button> <button class="ds-btn-gray" @click="openPrefs">Mở tùy chọn máy in</button></div>
               <p v-if="detectStatus" class="ds-hint">{{ detectStatus }}</p>
 
               <label class="ds-label">CĂN CHỈNH LỀ &amp; HƯỚNG IN</label>
