@@ -236,6 +236,60 @@ Write-Output 'PRINT_OK'
 
 ipcMain.handle('settings:get', () => getSettings())
 ipcMain.handle('settings:save', (_event, patch: Record<string, unknown>) => saveSettings(patch as never))
+ipcMain.handle('printer:analyze', async () => {
+  const psScript = `
+$rows = @()
+foreach ($p in Get-Printer) {
+  $xml = ''
+  try {
+    $cfg = Get-PrintConfiguration -PrinterName $p.Name
+    if ($cfg -and $cfg.PrintCapabilitiesXML) { $xml = [string]$cfg.PrintCapabilitiesXML }
+  } catch { }
+  $w2x6 = 0; $w4x6 = 0
+  if ($xml) {
+    $ms = [regex]::Matches($xml, '<psf:ScoredProperty name="psk:MediaSizeWidth"><psf:Value[^>]*">([0-9]+)</psf:Value></psf:ScoredProperty><psf:ScoredProperty name="psk:MediaSizeHeight"><psf:Value[^>]*">([0-9]+)</psf:Value></psf:ScoredProperty>')
+    foreach ($m in $ms) {
+      $w = [int]$m.Groups[1].Value; $h = [int]$m.Groups[2].Value
+      if ($h -ge 150000 -and $h -le 155000) {
+        if ($w -ge 50000 -and $w -le 61000) { $w2x6 = 1 }
+        if ($w -ge 88900 -and $w -le 110000) { $w4x6 = 1 }
+      }
+    }
+  }
+  $rows += [pscustomobject]@{
+    name = $p.Name; driver = $p.DriverName; port = $p.PortName; status = "$($p.PrinterStatus)";
+    supports2x6 = [bool]$w2x6; supports4x6 = [bool]$w4x6
+  }
+}
+$rows | ConvertTo-Json -Depth 3 -Compress
+`.trim()
+  const { execFile } = await import('node:child_process')
+  const { promisify } = await import('node:util')
+  const execFileAsync = promisify(execFile)
+  try {
+    const { stdout } = await execFileAsync('powershell', [
+      '-ExecutionPolicy', 'Bypass', '-NoProfile', '-WindowStyle', 'Hidden', '-Command', psScript,
+    ], { timeout: 30000, encoding: 'utf8', windowsHide: true })
+    let parsed: any[] = []
+    try {
+      const arr = JSON.parse(stdout || '[]')
+      parsed = Array.isArray(arr) ? arr : [arr]
+    } catch { parsed = [] }
+    const printers = parsed.map((p: any) => ({
+      name: String(p.name || ''),
+      driver: String(p.driver || ''),
+      port: String(p.port || ''),
+      status: String(p.status || ''),
+      supports2x6: !!p.supports2x6,
+      supports4x6: !!p.supports4x6,
+      nameLower: String(p.name || '').toLowerCase(),
+      driverLower: String(p.driver || '').toLowerCase(),
+    }))
+    return { ok: true, printers }
+  } catch (e) {
+    return { ok: false, printers: [] as any[], error: (e as Error).message }
+  }
+})
 ipcMain.handle('printer:list', async () => {
   const { execFile } = await import('node:child_process')
   const { promisify } = await import('node:util')

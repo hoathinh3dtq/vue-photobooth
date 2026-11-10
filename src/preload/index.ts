@@ -126,6 +126,8 @@ const api = {
   },
   printer: {
     list: (): Promise<{ ok: boolean; printers: string[] }> => ipcRenderer.invoke('printer:list'),
+    analyze: (): Promise<{ ok: boolean; printers: Array<{ name: string; driver: string; port: string; status: string; supports2x6: boolean; supports4x6: boolean; nameLower: string; driverLower: string }>; error?: string }> =>
+      ipcRenderer.invoke('printer:analyze'),
     openPreferences: (name: string): Promise<{ ok: boolean }> => ipcRenderer.invoke('printer:open-preferences', name),
   },
 }

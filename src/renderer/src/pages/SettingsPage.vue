@@ -10,6 +10,9 @@ const activeTab = ref<TabId>('general')
 
 // Printer (existing)
 const printers = ref<string[]>([])
+const detectedStrip = ref('')
+const detectedFull = ref('')
+const detectStatus = ref('')
 const printerName = ref('')
 const stripPrinter = ref('')
 const fullPrinter = ref('')
@@ -411,6 +414,81 @@ async function openPrefs() {
   } catch (e) { status.value = 'Lỗi mở preferences: ' + String(e) }
 }
 
+const detectStatusText = () => {
+  const s = (detectedStrip.value || 'strip chưa nhận diện')
+  const f = (detectedFull.value || 'full chưa nhận diện')
+  detectStatus.value = `Strip → ${s} · Full → ${f}`
+}
+
+function analyzeScore(p: { nameLower: string; driverLower: string; supports2x6: boolean; supports4x6: boolean }) {
+  const n = p.nameLower, d = p.driverLower
+  let strip = 0, full = 0
+  // Strip (2x6) signals
+  if (p.supports2x6) strip += 100
+  if (n.includes('2x6') || d.includes('2x6')) strip += 80
+  if (n.includes('strip') || d.includes('strip')) strip += 70
+  if (/ds-rx1|ds-rx1hs|ds-rx1h|ds-dl|rx-dl|dl-1/.test(d)) strip += 60
+  if (n.endsWith('(2x6)') || n.includes('ds-rx1')) strip += 50
+  if (n.includes('card') || n.includes('rimage')) strip -= 50
+  // Full (4x6) signals
+  if (p.supports4x6) full += 90
+  if (n.includes('4x6') || d.includes('4x6')) full += 80
+  if (n.includes('cp1500') || n.includes('cp1300') || n.includes('cp1200') || n.includes('cp10') || d.includes('cp1500')) full += 30
+  if (/ds-rx\d|ds-gu|ds-40|cp\d|cp-10|cp-1500/.test(d)) full += 20
+  if (full > strip && d.includes('rx1')) full += 10
+  return { strip, full }
+}
+
+async function runAnalyze() {
+  const api = (window as any).electronAPI
+  let result
+  try {
+    result = await api?.printer?.analyze?.()
+  } catch (e) {
+    detectStatus.value = 'Lỗi phân tích máy in: ' + String(e)
+    return null
+  }
+  if (!result?.ok) { detectStatus.value = 'Không liệt kê được máy in.'; return null }
+  const rows: Array<{ name: string; driver: string; port: string; status: string; supports2x6: boolean; supports4x6: boolean; nameLower: string; driverLower: string }> = result.printers || []
+  return rows
+}
+
+async function detectPrinter(kind: 'strip' | 'full') {
+  const rows = await runAnalyze()
+  if (!rows) return
+  const scored = rows.map(r => ({ ...r, ...analyzeScore(r) }))
+  const used = new Set<string>()
+  if (kind === 'strip') {
+    if (fullPrinter.value) used.add(fullPrinter.value)
+    const best = scored.filter(s => !used.has(s.name)).sort((a, b) => b.strip - a.strip)[0]
+    if (best && best.strip > 0) { stripPrinter.value = best.name; detectedStrip.value = best.name } else { detectedStrip.value = 'Không nhận diện được 2×6' }
+  } else {
+    if (stripPrinter.value) used.add(stripPrinter.value)
+    const best = scored.filter(s => !used.has(s.name)).sort((a, b) => b.full - a.full)[0]
+    if (best && best.full > 0) { fullPrinter.value = best.name; detectedFull.value = best.name } else { detectedFull.value = 'Không nhận diện được 4×6' }
+  }
+  detectStatusText()
+}
+
+async function autoDetectPrinters() {
+  const rows = await runAnalyze()
+  if (!rows) return
+  const scored = rows.map(r => ({ ...r, ...analyzeScore(r) }))
+  // strip: highest strip score
+  const byStrip = [...scored].sort((a, b) => b.strip - a.strip)
+  const byFull = [...scored].sort((a, b) => b.full - a.full)
+  if (byStrip[0] && byStrip[0].strip > 0) {
+    stripPrinter.value = byStrip[0].name; detectedStrip.value = byStrip[0].name
+  }
+  // full: highest full score excluding the strip assignment (if two candidates and a 4x6-only exists, prefer it)
+  const remaining = byFull.filter(p => p.name !== stripPrinter.value || scored.filter(s => s.name === stripPrinter.value && s.full > 0).length > 1)
+  // if the strip-candidate also has strong full, assign it to both only if no other meaningful full
+  if (remaining[0] && remaining[0].full > 0) {
+    fullPrinter.value = remaining[0].name; detectedFull.value = remaining[0].name
+  }
+  detectStatusText()
+}
+
 function goHome() { router.push('/home') }
 function refreshApp() { window.location.reload() }
 
@@ -632,9 +710,11 @@ onMounted(() => { void load() })
             <div class="ds-body">
               <div class="ds-row">
                 <div style="flex:1;"><label class="ds-label">MÁY IN</label><select v-model="printerName" style="width:100%;"><option value="">-- chọn máy in --</option><option v-for="p in printers" :key="p" :value="p">{{ p }}</option></select><button class="ds-btn-gray" style="margin-top:6px;" @click="openPrefs">Mở tùy chọn máy in</button></div>
-                <div style="flex:1;"><label class="ds-label">MÁY IN STRIP (2x6)</label><select v-model="stripPrinter" style="width:100%;"><option value="">-- chọn máy in --</option><option v-for="p in printers" :key="'s'+p" :value="p">{{ p }}</option></select></div>
-                <div style="flex:1;"><label class="ds-label">MÁY IN FULL (4x6)</label><select v-model="fullPrinter" style="width:100%;"><option value="">-- chọn máy in --</option><option v-for="p in printers" :key="'f'+p" :value="p">{{ p }}</option></select></div>
+                <div style="flex:1;"><label class="ds-label">MÁY IN STRIP (2x6)</label><select v-model="stripPrinter" style="width:100%;"><option value="">-- chọn máy in --</option><option v-for="p in printers" :key="'s'+p" :value="p">{{ p }}</option></select><button class="ds-btn-gray" style="margin-top:6px;" @click="detectPrinter('strip')">Tự nhận diện</button><small class="ds-hint" v-if="detectedStrip">→ {{ detectedStrip }}</small></div>
+                <div style="flex:1;"><label class="ds-label">MÁY IN FULL (4x6)</label><select v-model="fullPrinter" style="width:100%;"><option value="">-- chọn máy in --</option><option v-for="p in printers" :key="'f'+p" :value="p">{{ p }}</option></select><button class="ds-btn-gray" style="margin-top:6px;" @click="detectPrinter('full')">Tự nhận diện</button><small class="ds-hint" v-if="detectedFull">→ {{ detectedFull }}</small></div>
               </div>
+              <div class="ds-row" style="margin-top:8px;"><button class="ds-btn-pink" @click="autoDetectPrinters">🪄 Tự nhận diện cả hai máy in</button></div>
+              <p v-if="detectStatus" class="ds-hint">{{ detectStatus }}</p>
 
               <label class="ds-label">CĂN CHỈNH LỀ &amp; HƯỚNG IN</label>
               <div class="ds-row">

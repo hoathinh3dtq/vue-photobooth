@@ -67,6 +67,7 @@ export function installTauriBridge(): boolean {
       },
       printer: {
         list: async () => ({ ok: true, printers: [] }),
+        analyze: async () => ({ ok: true, printers: [] }),
         openPreferences: async () => ({ ok: true }),
       },
     }
@@ -114,6 +115,7 @@ export function installTauriBridge(): boolean {
     },
     printer: {
       list: () => tauriInvoke('printer_list'),
+      analyze: () => tauriInvoke('printer_analyze'),
       openPreferences: (name: string) => tauriInvoke('printer_open_preferences', { name }),
     },
     sidecar: sidecarHelper(),
