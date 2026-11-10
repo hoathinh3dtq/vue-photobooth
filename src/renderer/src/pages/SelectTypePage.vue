@@ -62,6 +62,10 @@ function step(direction: number): void {
   selectedId.value = categories.value[next].id
 }
 
+function goHome(): void {
+  router.push('/home')
+}
+
 function select(cat: Category): void {
   selectedId.value = cat.id
   selectionStore.select(cat)
@@ -117,6 +121,7 @@ onMounted(async () => {
       />
     </svg>
 
+    <button type="button" class="st-back-btn" @click="goHome">← Quay lại</button>
     <FlowerLoader v-if="loading" />
     <p v-else-if="error" class="st-hint st-error">{{ error }}</p>
     <p v-else-if="categories.length === 0" class="st-hint">Chưa có loại ảnh nào cho booth này</p>
@@ -170,6 +175,23 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.st-back-btn {
+  position: absolute;
+  top: 2vh;
+  left: 2vw;
+  z-index: 20;
+  padding: 10px 18px;
+  border: 1.5px solid rgba(225, 78, 127, 0.35);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.75);
+  color: #e14e7f;
+  font-family: 'Nunito', 'Segoe UI', Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.st-back-btn:hover { background: #fff; }
+
 .st-root {
   position: fixed;
   inset: 0;
