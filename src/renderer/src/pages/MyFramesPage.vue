@@ -28,12 +28,29 @@ const selectedId = ref<string | number | null>(null)
 
 const selectedFrame = computed(() => frames.value.find(f => String(f.id) === String(selectedId.value)))
 const currentFrame = computed(() => selectedFrame.value as FrameItem)
-const eventId = computed(() => localStorage.getItem('event_id') || '')
+
+interface EventItem {
+  id: number | string
+  name: string
+  status: number
+}
+
+const events = ref<EventItem[]>([])
+const activeEventId = ref(localStorage.getItem('event_id') || '')
+const newEventName = ref('')
+const eventStatus = ref('')
+
+const eventLabel = computed(() =>
+  activeEventId.value
+    ? events.value.find(e => String(e.id) === String(activeEventId.value))?.name || 'Sự kiện đã chọn'
+    : 'Booth (không theo sự kiện)'
+)
 
 function setStatus(msg: string, ok = false) {
   status.value = msg
   statusOk.value = ok
 }
+const eventId = computed(() => activeEventId.value || localStorage.getItem('event_id') || '')
 
 function frameImgUrl(f: FrameItem): string {
   const host = import.meta.env.VITE_API_HOST || 'http://127.0.0.1:8000'
@@ -52,6 +69,58 @@ async function loadFrames() {
   } finally {
     loading.value = false
   }
+}
+
+async function loadEvents() {
+  try {
+    const token = localStorage.getItem('auth_token') || ''
+    const host = import.meta.env.VITE_API_HOST || 'http://127.0.0.1:8000'
+    const res = await fetch(`${host}/api/events`, { headers: { Authorization: `Bearer ${token}` } })
+    if (!res.ok) return
+    const j = await res.json()
+    events.value = j?.events || j?.data || []
+  } catch { /* ignore */ }
+}
+
+async function createInlineEvent() {
+  const name = newEventName.value.trim()
+  if (!name) { eventStatus.value = 'Nhập tên sự kiện.'; return }
+  try {
+    const token = localStorage.getItem('auth_token') || ''
+    const host = import.meta.env.VITE_API_HOST || 'http://127.0.0.1:8000'
+    const res = await fetch(`${host}/api/events`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ name, status: 1 }),
+    })
+    const j = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(j?.message || 'Tạo sự kiện thất bại')
+    const evId = j?.data?.id ?? j?.id
+    if (evId) {
+      activeEventId.value = String(evId)
+      localStorage.setItem('event_id', String(evId))
+      localStorage.setItem('booth_type', 'event')
+    }
+    newEventName.value = ''
+    eventStatus.value = evId ? 'Đã tạo và chọn sự kiện.' : 'Đã tạo.'
+    await loadEvents()
+    await loadFrames()
+  } catch (e) {
+    eventStatus.value = 'Lỗi: ' + String(e)
+  }
+}
+
+function selectEvent(ev: EventItem | null) {
+  if (ev) {
+    activeEventId.value = String(ev.id)
+    localStorage.setItem('event_id', String(ev.id))
+    localStorage.setItem('booth_type', 'event')
+  } else {
+    activeEventId.value = ''
+    localStorage.removeItem('event_id')
+    localStorage.setItem('booth_type', 'store')
+  }
+  loadFrames()
 }
 
 async function detectHoles(file: File): Promise<{ holes: any[]; fw: number; fh: number }> {
@@ -216,7 +285,7 @@ async function setAllActive(active: boolean) {
 function goBack() { router.push('/settings') }
 function goLibrary() { router.push('/frame-library') }
 
-onMounted(() => { void loadFrames() })
+onMounted(() => { void loadEvents(); void loadFrames() })
 </script>
 
 <template>
@@ -225,10 +294,24 @@ onMounted(() => { void loadFrames() })
       <button class="mf-back" @click="goBack">← Quay lại</button>
       <div>
         <h1>Frame của tôi</h1>
-        <p>Tải frame PNG riêng cho {{ eventId ? 'sự kiện này' : 'booth của bạn' }}</p>
+        <p>Tải frame PNG — hiện tại: <strong>{{ eventLabel }}</strong></p>
       </div>
       <button class="mf-lib" @click="goLibrary">☁ Kho frame dùng chung</button>
     </header>
+
+    <section class="mf-event-bar">
+      <div class="mf-event-info">
+        <span class="mf-label">Đang thêm frame cho</span>
+        <select v-model="activeEventId" @change="selectEvent(events.find(e => String(e.id) === String(activeEventId)) || null)" style="padding:8px 12px; border-radius:10px; border:1px solid #f4b4cb;">
+          <option value="">Booth (không theo sự kiện)</option>
+          <option v-for="ev in events" :key="ev.id" :value="String(ev.id)">{{ ev.name }}</option>
+        </select>
+      </div>
+      <div class="mf-event-create">
+        <input v-model="newEventName" placeholder="Tên sự kiện mới…" @keyup.enter="createInlineEvent" />
+        <button class="mf-lib" @click="createInlineEvent">+ Tạo</button>
+      </div>
+    </section>
 
     <!-- Upload card -->
     <section class="mf-card">
@@ -318,7 +401,12 @@ onMounted(() => { void loadFrames() })
   padding: 24px;
   overflow: auto;
 }
-.mf-head { display:flex; align-items:center; gap:16px; margin-bottom: 18px; }
+.mf-head { display:flex; align-items:center; gap:16px; margin-bottom: 14px; }
+.mf-event-bar { display:flex; gap:12px; align-items:center; background:#fff; border:1px solid #f4b4cb; padding:10px 12px; border-radius:12px; margin-bottom:14px; }
+.mf-event-info, .mf-event-create { display:flex; gap:8px; align-items:center; }
+.mf-event-create { margin-left:auto; }
+.mf-event-create input { flex:1; }
+.mf-label { font-weight:700; color:#e14e7f; font-size:12px; }
 .mf-back { padding: 10px 16px; border: 1px solid #f4b4cb; background:#fff; border-radius: 999px; color:#e14e7f; font-weight:700; cursor:pointer; }
 .mf-head h1 { margin:0; font-size:24px; color:#e14e7f; font-weight:800; }
 .mf-head p { margin:0; color:#a07a89; font-size:12px; }
