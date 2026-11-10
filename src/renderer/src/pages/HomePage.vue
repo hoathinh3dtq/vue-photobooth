@@ -27,8 +27,19 @@ function goSettings(): void {
   router.push('/settings')
 }
 
-function goMyFrames(): void {
-  router.push('/my-frames')
+// Bảo vệ nút góc: bấm 5 lần trong 3 giây mới vào cài đặt
+let settingsClickCount = 0
+let settingsClickTimer: ReturnType<typeof setTimeout> | null = null
+function handleSettingsClick(): void {
+  settingsClickCount += 1
+  if (settingsClickCount >= 5) {
+    if (settingsClickTimer) { clearTimeout(settingsClickTimer); settingsClickTimer = null }
+    settingsClickCount = 0
+    goSettings()
+    return
+  }
+  if (settingsClickTimer) clearTimeout(settingsClickTimer)
+  settingsClickTimer = setTimeout(() => { settingsClickCount = 0; settingsClickTimer = null }, 3000)
 }
 </script>
 
@@ -83,20 +94,10 @@ function goMyFrames(): void {
       id="settingsBtn"
       type="button"
       aria-label="Cài đặt"
-      @click="goSettings"
-      style="right: 2.5vw; width: auto; padding: 0 14px; font-size: 14px;"
+      @click="handleSettingsClick"
+      style="right: 2.5vw;"
     >
-      ⚙ Cài đặt
-    </button>
-    <button
-      class="hb-logout"
-      id="myFramesBtn"
-      type="button"
-      aria-label="Frame của tôi"
-      @click="goMyFrames"
-      style="right: 7vw; top: 7vh; font-size: 12px; width: auto; padding: 0 12px;"
-    >
-      + Frame
+      ⚙
     </button>
 
 
