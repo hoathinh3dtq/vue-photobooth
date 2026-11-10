@@ -190,6 +190,12 @@ async function setAllFramesActive(active: boolean) {
   }
 }
 
+function frameImgUrl(f: any): string {
+  if (!f?.image_path) return ''
+  const host = import.meta.env.VITE_API_HOST || 'http://127.0.0.1:8000'
+  return `${String(host).replace(/\/$/, '')}/${String(f.image_path).replace(/^\//, '')}`
+}
+
 async function saveQr(frame: any) {
   try {
     const token = localStorage.getItem('auth_token') || ''
@@ -273,14 +279,14 @@ onMounted(() => { void loadFrames() })
       <h3>Danh sách frames ({{ frames.length }})</h3>
       <div v-if="loading">Đang tải...</div>
       <div v-for="f in frames" :key="f.id" style="display:flex; align-items:center; gap:12px; padding:8px; border-bottom:1px solid #eee;">
-        <img :src="f.image_path ? (import.meta.env.VITE_API_HOST||'http://127.0.0.1:8000')+'/'+f.image_path : ''" style="width:60px; height:90px; object-fit:cover; border:1px solid #ccc;" />
+        <img :src="frameImgUrl(f)" style="width:60px; height:90px; object-fit:cover; border:1px solid #ccc;" />
         <div style="flex:1;">
           <div><strong>{{ f.name }}</strong></div>
           <div style="font-size:12px; color:#666;">{{ f.frame_shape }} · {{ (f.holes_metadata?.holes?.length) || 0 }} lỗ · {{ f.is_active ? 'active' : 'inactive' }}</div>
           <div style="margin-top:8px;">
             <QREditor
               :model-value="{ enabled: f.enable_overlay ?? true, x: f.qr_x ?? 0, y: f.qr_y ?? 0, size: f.qr_size ?? 200 }"
-              :image-url="f.image_path ? (import.meta.env.VITE_API_HOST||'http://127.0.0.1:8000')+'/'+f.image_path : ''"
+              :image-url="frameImgUrl(f)"
               :fw="f.holes_metadata?.fw || 1200"
               :fh="f.holes_metadata?.fh || 3600"
               @update:model-value="(val) => { f.qr_x = val.x; f.qr_y = val.y; f.qr_size = val.size; f.enable_overlay = val.enabled; }"
