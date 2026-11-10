@@ -1,55 +1,70 @@
 import { API_HOST } from './client'
+import { login, saveSession } from './auth'
 
-const host = () => import.meta.env.VITE_API_HOST || API_HOST.replace(/\/api$/, '') || 'http://127.0.0.1:8000'
+const host = () => (import.meta.env.VITE_API_HOST || API_HOST || 'http://127.0.0.1:8000').replace(/\/$/, '')
 
-function token(): string {
-  return localStorage.getItem('auth_token') || ''
+function headers(extra?: Record<string, string>): Record<string, string> {
+  const t = localStorage.getItem('auth_token') || ''
+  return { ...(t ? { Authorization: `Bearer ${t}` } : {}), ...(extra || {}) }
 }
 
-function authHeaders(extra?: Record<string, string>): Record<string, string> {
-  const t = token()
-  return {
-    ...(t ? { Authorization: `Bearer ${t}` } : {}),
-    ...(extra || {}),
+async function parseJson(res: Response) {
+  const text = await res.text()
+  try {
+    return text ? JSON.parse(text) : {}
+  } catch {
+    return { message: text }
   }
 }
 
-export interface FrameHole {
-  x: number
-  y: number
-  w: number
-  h: number
-  orientation: string
+// Auto re-login on 401 then retry once
+export async function apiFetch(path: string, init: RequestInit = {}, retry = true): Promise<Response> {
+  const res = await fetch(`${host()}${path}`, {
+    ...init,
+    headers: { ...headers(init.headers as Record<string, string>), ...(init.headers as Record<string, string> || {}) },
+  })
+  if (res.status === 401 && retry) {
+    try {
+      // re-login with stored booth info
+      const email = localStorage.getItem('default_email') || 'admin@photobooth.com'
+      const password = localStorage.getItem('default_password') || '123456'
+      const booth = localStorage.getItem('booth_code') || 'LOCAL001'
+      localStorage.removeItem('auth_token')
+      const r = await login(email, password, booth)
+      saveSession(r)
+      return apiFetch(path, init, false)
+    } catch {
+      return res
+    }
+  }
+  return res
 }
 
-export interface FrameMeta {
-  holes: FrameHole[]
-  fw: number
-  fh: number
-}
-
-export interface FrameRecord {
+export interface FrameItem {
   id: number | string
   name: string
   image_path?: string
   frame_shape?: string
   category_id?: number | string | null
   layout_id?: number | string | null
-  holes_metadata?: FrameMeta | null
-  qr_x?: number | null
-  qr_y?: number | null
-  qr_size?: number | null
-  is_active?: boolean | number | string
-  enable_overlay?: boolean | number | string
+  holes_metadata?: any
+  qr_x?: number
+  qr_y?: number
+  qr_size?: number
+  enable_overlay?: boolean
+  is_active?: boolean | number
+  is_platform?: boolean
+  event_id?: number | string | null
   [key: string]: unknown
 }
 
 export interface PlatformFrame {
-  id: number | string
-  name: string
-  url?: string
+  id?: number | string
+  name?: string
   image_path?: string
-  holes_metadata?: FrameMeta | null
+  url?: string
+  holes_metadata?: any
+  category_id?: number | string | null
   [key: string]: unknown
 }
 
@@ -59,162 +74,91 @@ export interface FrameLayout {
   [key: string]: unknown
 }
 
-export interface UploadFrameOptions {
-  name: string
-  shape: string
-  holes: FrameMeta
-  categoryId?: number | string | null
-  layoutId?: number | string | null
-  qrX?: number | null
-  qrY?: number | null
-  qrSize?: number | null
-  enableOverlay?: boolean
-  eventId?: number | string | null
+export async function listFrames(eventId?: string | null): Promise<FrameItem[]> {
+  const q = eventId ? `?event_id=${encodeURIComponent(eventId)}` : ''
+  const res = await apiFetch(`/api/frames/all${q}`)
+  const j = await parseJson(res)
+  return j?.data || []
 }
 
-/**
- * Vendor `ly()` helper, ported to the Vue backend (/api prefix).
- * Sends the full multipart payload expected by HihiBooth.
- */
-export async function uploadFrame(file: File, options: UploadFrameOptions): Promise<unknown> {
+export async function uploadFrame(file: File, opts: { name?: string; frame?: string; categoryId?: number | null; layoutId?: number | null; eventId?: number | string | null; holesMetadata?: unknown; qrX?: number; qrY?: number; qrSize?: number; enableOverlay?: boolean }): Promise<FrameItem | null> {
   const fd = new FormData()
   fd.append('image', file)
-  fd.append('name', options.name)
-  fd.append('frame', options.shape)
-
-  if (options.categoryId != null && options.categoryId !== '') {
-    fd.append('category_id', String(options.categoryId))
-  }
-  if (options.layoutId != null && options.layoutId !== '') {
-    fd.append('layout_id', String(options.layoutId))
-  }
-  if (options.eventId != null && options.eventId !== '') {
-    fd.append('event_id', String(options.eventId))
-  }
-
-  fd.append('holes_metadata', JSON.stringify(options.holes))
-
-  if (options.qrX !== null && options.qrX !== undefined) {
-    fd.append('qr_x', String(options.qrX))
-  }
-  if (options.qrY !== null && options.qrY !== undefined) {
-    fd.append('qr_y', String(options.qrY))
-  }
-  if (options.qrSize !== null && options.qrSize !== undefined) {
-    fd.append('qr_size', String(options.qrSize))
-  }
-
-  fd.append('enable_overlay', options.enableOverlay ? '1' : '0')
-
-  const res = await fetch(`${host()}/api/frames/upload`, {
-    method: 'POST',
-    headers: authHeaders(),
-    body: fd,
-  })
-
-  if (!res.ok) throw new Error(await res.text())
-  return res.json()
+  fd.append('name', opts.name || file.name)
+  fd.append('frame', opts.frame || 'vertical')
+  if (opts.categoryId != null) fd.append('category_id', String(opts.categoryId))
+  if (opts.layoutId != null) fd.append('layout_id', String(opts.layoutId))
+  if (opts.eventId != null) fd.append('event_id', String(opts.eventId))
+  if (opts.holesMetadata) fd.append('holes_metadata', JSON.stringify(opts.holesMetadata))
+  fd.append('qr_x', String(opts.qrX ?? 0))
+  fd.append('qr_y', String(opts.qrY ?? 0))
+  fd.append('qr_size', String(opts.qrSize ?? 200))
+  fd.append('enable_overlay', opts.enableOverlay ? '1' : '0')
+  const res = await apiFetch('/api/frames/upload', { method: 'POST', body: fd })
+  const j = await parseJson(res)
+  if (!res.ok) throw new Error(j?.message || 'Upload thất bại')
+  return j?.data || null
 }
 
-export async function getUserInfo(): Promise<unknown> {
-  const res = await fetch(`${host()}/api/admin/user-info`, { headers: authHeaders() })
-  if (!res.ok) throw new Error(await res.text())
-  return res.json()
-}
-
-export async function listFrames(includeAdmin = false): Promise<FrameRecord[]> {
-  const path = includeAdmin ? '/api/admin/images' : '/api/frames/all'
-  const res = await fetch(`${host()}${path}`, { headers: authHeaders() })
-  if (!res.ok) throw new Error(await res.text())
-  const json = await res.json()
-  const data = json?.data ?? json
-  return Array.isArray(data) ? data : []
-}
-
-export async function getFrame(frame: string | number): Promise<unknown> {
-  const res = await fetch(`${host()}/api/frame?frame=${encodeURIComponent(String(frame))}`, {
-    headers: authHeaders(),
-  })
-  if (!res.ok) throw new Error(await res.text())
-  return res.json()
-}
-
-export async function updateFrame(
-  id: string | number,
-  payload: Partial<FrameRecord>,
-): Promise<FrameRecord> {
-  const res = await fetch(`${host()}/api/frames/${id}`, {
+export async function updateFrame(id: number | string, payload: Record<string, unknown>): Promise<FrameItem | null> {
+  const res = await apiFetch(`/api/frames/${id}`, {
     method: 'PUT',
-    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   })
-  if (!res.ok) throw new Error(await res.text())
-  const json = await res.json()
-  return (json?.data ?? json) as FrameRecord
+  const j = await parseJson(res)
+  if (!res.ok) throw new Error(j?.message || 'Cập nhật thất bại')
+  return j?.data || null
 }
 
-export async function deleteFrame(filename: string): Promise<unknown> {
-  const res = await fetch(`${host()}/api/frames/delete/${encodeURIComponent(filename)}`, {
-    method: 'DELETE',
-    headers: authHeaders(),
-  })
-  if (!res.ok) throw new Error(await res.text())
-  return res.json().catch(() => null)
+export async function deleteFrame(id: number | string): Promise<boolean> {
+  const res = await apiFetch(`/api/frames/${id}`, { method: 'DELETE' })
+  return res.ok
 }
 
-export async function deleteAllFrames(): Promise<unknown> {
-  const res = await fetch(`${host()}/api/frames/delete-all`, {
-    method: 'DELETE',
-    headers: authHeaders(),
-  })
-  if (!res.ok) throw new Error(await res.text())
-  return res.json().catch(() => null)
+export async function deleteFrameByFilename(filename: string): Promise<boolean> {
+  const res = await apiFetch(`/api/frames/delete/${filename}`, { method: 'DELETE' })
+  return res.ok
 }
 
-export async function bulkVisibility(ids: Array<string | number>, isActive: boolean): Promise<unknown> {
-  const res = await fetch(`${host()}/api/frames/bulk-visibility`, {
+export async function bulkVisibility(ids: Array<number | string>, isActive: boolean): Promise<boolean> {
+  const res = await apiFetch('/api/frames/bulk-visibility', {
     method: 'PUT',
-    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ids, is_active: isActive }),
   })
-  if (!res.ok) throw new Error(await res.text())
-  return res.json().catch(() => null)
+  return res.ok
 }
 
-export async function listPlatformFrames(): Promise<PlatformFrame[]> {
-  const res = await fetch(`${host()}/api/admin/platform/frame-library`, { headers: authHeaders() })
-  if (!res.ok) throw new Error(await res.text())
-  const json = await res.json()
-  const data = json?.data ?? json
-  return Array.isArray(data) ? data : []
+export async function deleteAllFrames(): Promise<boolean> {
+  const res = await apiFetch('/api/frames/delete-all', { method: 'DELETE' })
+  return res.ok
 }
 
-export async function listLayouts(): Promise<FrameLayout[]> {
-  const res = await fetch(`${host()}/api/admin/layouts`, { headers: authHeaders() })
-  if (!res.ok) throw new Error(await res.text())
-  const json = await res.json()
-  const data = json?.data ?? json
-  return Array.isArray(data) ? data : []
+export async function listPlatformFrames(): Promise<FrameItem[]> {
+  const res = await apiFetch('/api/admin/platform/frame-library')
+  const j = await parseJson(res)
+  return j?.data || []
+}
+
+export async function listLayouts(): Promise<{ id: number; name: string }[]> {
+  const res = await apiFetch('/api/admin/layouts')
+  const j = await parseJson(res)
+  return j?.data || []
 }
 
 export async function importPlatformFrame(
-  frameId: string | number,
-  layoutId: string | number,
+  frameIds: number | string | Array<number | string>,
+  layoutId: number | string,
   qrX = 0,
   qrY = 0,
   qrSize = 200,
-): Promise<unknown> {
-  const res = await fetch(`${host()}/api/admin/platform/frame-library/import`, {
+): Promise<boolean> {
+  const ids = Array.isArray(frameIds) ? frameIds : [frameIds]
+  const res = await apiFetch('/api/admin/platform/frame-library/import', {
     method: 'POST',
-    headers: authHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({
-      frame_ids: [frameId],
-      layout_id: layoutId,
-      qr_x: qrX,
-      qr_y: qrY,
-      qr_size: qrSize,
-    }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ frame_ids: ids, layout_id: Number(layoutId), qr_x: qrX, qr_y: qrY, qr_size: qrSize }),
   })
-  if (!res.ok) throw new Error(await res.text())
-  return res.json()
+  return res.ok
 }

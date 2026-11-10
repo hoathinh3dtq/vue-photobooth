@@ -49,7 +49,7 @@ async function importSelected() {
   status.value = ''
   try {
     await importPlatformFrame(
-      selectedFrame.value.id,
+      selectedFrame.value.id ?? 0,
       selectedLayout.value.id,
       qrEnabled.value ? qrX.value : 0,
       qrEnabled.value ? qrY.value : 0,
