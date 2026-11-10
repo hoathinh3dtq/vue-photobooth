@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { type FrameItem } from '../lib/api/frames'
 
 const router = useRouter()
 
@@ -78,6 +79,13 @@ const eventLoading = ref(false)
 const activeEventId = ref('')
 const activeEventName = ref('')
 const eventStatus = ref('')
+// Frame picker per event
+const allFrames = ref<FrameItem[]>([])
+const framesLoaded = ref(false)
+const framePickerOpen = ref('')
+const selectedFrameIds = ref<Record<string, number[]>>({})
+const frameSaving = ref(false)
+const frameStatus = ref('')
 
 const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: 'general', label: 'Chung & Trải nghiệm', icon: '☑' },
@@ -187,6 +195,7 @@ async function load() {
       videoDevices.value = devices.filter(d => d.kind === 'videoinput')
     } catch { /* ignore */ }
     await loadEvents()
+    await loadAllFrames()
   } catch (e) {
     status.value = 'Lỗi tải settings: ' + String(e)
   } finally {
@@ -267,6 +276,81 @@ async function loadEvents() {
     }
   } catch { /* ignore */ }
   finally { eventLoading.value = false }
+}
+
+async function loadAllFrames() {
+  try {
+    const token = localStorage.getItem('auth_token') || ''
+    const host = import.meta.env.VITE_API_HOST || 'http://127.0.0.1:8000'
+    const res = await fetch(`${host}/api/frames/all?scope=all`, { headers: { Authorization: `Bearer ${token}` } })
+    if (!res.ok) return
+    const json = await res.json()
+    allFrames.value = json?.data || []
+    framesLoaded.value = true
+  } catch { /* ignore */ }
+}
+
+function frameImgUrl(f: FrameItem): string {
+  const host = String(import.meta.env.VITE_API_HOST || 'http://127.0.0.1:8000').replace(/\/$/, '')
+  const raw = String((f as any).image_path || '')
+  if (!raw) return ''
+  if (raw.startsWith('http') || raw.startsWith('data:')) return raw
+  return `${host}/${raw.replace(/^\//, '')}`
+}
+
+function pickerIds(ev: any): number[] {
+  const key = String(ev.id)
+  return selectedFrameIds.value[key] || (ev.frame_ids || []).map((n: any) => Number(n))
+}
+
+function frameChecked(ev: any, frameId: number): boolean {
+  return pickerIds(ev).includes(Number(frameId))
+}
+
+async function toggleFramePicker(ev: any) {
+  const key = String(ev.id)
+  if (framePickerOpen.value === key) {
+    framePickerOpen.value = ''
+    return
+  }
+  if (!framesLoaded.value) await loadAllFrames()
+  if (!selectedFrameIds.value[key]) {
+    selectedFrameIds.value = { ...selectedFrameIds.value, [key]: (ev.frame_ids || []).map((n: any) => Number(n)) }
+  }
+  framePickerOpen.value = key
+  frameStatus.value = ''
+}
+
+function toggleFrameForEvent(ev: any, frameId: number) {
+  const key = String(ev.id)
+  const cur = [...pickerIds(ev)]
+  const idx = cur.indexOf(Number(frameId))
+  if (idx >= 0) cur.splice(idx, 1)
+  else cur.push(Number(frameId))
+  selectedFrameIds.value = { ...selectedFrameIds.value, [key]: cur }
+}
+
+async function saveFramesForEvent(ev: any) {
+  const key = String(ev.id)
+  const ids = selectedFrameIds.value[key] || (ev.frame_ids || []).map((n: any) => Number(n))
+  frameSaving.value = true
+  frameStatus.value = ''
+  try {
+    const token = localStorage.getItem('auth_token') || ''
+    const host = import.meta.env.VITE_API_HOST || 'http://127.0.0.1:8000'
+    const res = await fetch(`${host}/api/events/${ev.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ frame_ids: ids }),
+    })
+    if (!res.ok) throw new Error('HTTP ' + res.status)
+    frameStatus.value = `Đã lưu ${ids.length} frame cho sự kiện "${ev.name}".`
+    await loadEvents()
+  } catch (e) {
+    frameStatus.value = 'Lỗi lưu frames: ' + String(e)
+  } finally {
+    frameSaving.value = false
+  }
 }
 
 async function createEvent() {
@@ -779,13 +863,32 @@ onMounted(() => { void load() })
             <div class="ds-card-head"><div><strong>DANH SÁCH SỰ KIỆN ĐÃ TẠO</strong><small>Bạn có thể kích hoạt lại sự kiện cũ bất kỳ lúc nào.</small></div><span class="ds-chip">{{ events.length }} sự kiện</span></div>
             <div class="ds-body">
               <div v-if="events.length === 0" class="ds-empty">Chưa có sự kiện nào. Hãy tạo sự kiện đầu tiên ở trên!</div>
-              <div v-for="ev in events" :key="ev.id" class="ds-row" style="border:1px solid #eee; padding:8px; border-radius:8px;">
-                <strong style="flex:1;">{{ ev.name }}</strong>
-                <span class="ds-chip">{{ ev.status === 1 ? 'Đang diễn ra' : 'Hoàn thành' }}</span>
-                <button class="ds-btn-pink" @click="addFrameForEvent(ev)">Thêm frame</button>
-                <button class="ds-btn-gray" @click="openFolderFor(ev)">Mở ảnh</button>
-                <button class="ds-btn-pink" style="background:#6b7280;" @click="activateEvent(ev)">{{ String(activeEventId) === String(ev.id) ? 'Đang chọn' : 'Kích hoạt' }}</button>
-                <button class="ds-btn-gray" @click="deleteEvent(ev)">Xóa</button>
+              <div v-for="ev in events" :key="ev.id" style="border:1px solid #eee; padding:8px; border-radius:8px;">
+                <div class="ds-row" style="align-items:center; flex-wrap:wrap;">
+                  <strong style="flex:1;">{{ ev.name }}</strong>
+                  <span class="ds-chip">{{ ev.status === 1 ? 'Đang diễn ra' : 'Hoàn thành' }}</span>
+                  <span class="ds-chip">{{ (ev.frame_ids || []).length }} frame</span>
+                  <button class="ds-btn-pink" style="background:#8b5cf6;" @click="toggleFramePicker(ev)">🖼 Chọn frame{{ framePickerOpen === String(ev.id) ? ' ▲' : ' ▼' }}</button>
+                  <button class="ds-btn-pink" @click="addFrameForEvent(ev)">Thêm frame</button>
+                  <button class="ds-btn-gray" @click="openFolderFor(ev)">Mở ảnh</button>
+                  <button class="ds-btn-pink" style="background:#6b7280;" @click="activateEvent(ev)">{{ String(activeEventId) === String(ev.id) ? 'Đang chọn' : 'Kích hoạt' }}</button>
+                  <button class="ds-btn-gray" @click="deleteEvent(ev)">Xóa</button>
+                </div>
+                <div v-if="framePickerOpen === String(ev.id)" style="border-top:1px dashed #e5e7eb; padding-top:10px; margin-top:8px;">
+                  <div v-if="allFrames.length === 0" class="ds-empty">Chưa có frame nào. Dùng "Thêm frame" để tải frame lên trước.</div>
+                  <div v-else style="display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:8px;max-height:240px;overflow-y:auto;">
+                    <button v-for="f in allFrames" :key="f.id" type="button" @click="toggleFrameForEvent(ev, Number(f.id))"
+                      :style="{ border: frameChecked(ev, Number(f.id)) ? '2px solid #8b5cf6' : '1px solid #e5e7eb', borderRadius: '10px', padding: '6px', background: frameChecked(ev, Number(f.id)) ? '#f3e8ff' : '#fff', cursor: 'pointer', textAlign: 'center' }">
+                      <img :src="frameImgUrl(f)" :alt="String(f.name)" style="width:100%;height:72px;object-fit:contain;border-radius:8px;background:#fdf3f7;" />
+                      <small style="display:block;font-size:10px;word-break:break-word;margin-top:3px;">{{ f.name }}</small>
+                    </button>
+                  </div>
+                  <div class="ds-row" style="margin-top:8px; align-items:center;">
+                    <button class="ds-btn-pink" :disabled="frameSaving" @click="saveFramesForEvent(ev)">{{ frameSaving ? 'Đang lưu...' : '💾 Lưu frame đã chọn' }}</button>
+                    <button class="ds-btn-gray" @click="framePickerOpen = ''">Đóng</button>
+                    <span v-if="frameStatus" class="ds-hint" style="margin:0;">{{ frameStatus }}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
