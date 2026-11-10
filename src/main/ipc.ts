@@ -1,4 +1,4 @@
-import { ipcMain, app, BrowserWindow } from 'electron'
+import { ipcMain, app, BrowserWindow, shell } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import { execFile } from 'node:child_process'
@@ -285,6 +285,18 @@ ipcMain.handle('save-event-photo', async (_event, base64: string, eventId: numbe
     return filePath
   } catch {
     return null
+  }
+})
+
+// Mở thư mục dãn ảnh sự kiện
+ipcMain.handle('events:open-folder', async (_event, eventId: number | string) => {
+  try {
+    const eventDir = path.join(app.getPath('userData'), 'events', String(eventId))
+    if (!fs.existsSync(eventDir)) fs.mkdirSync(eventDir, { recursive: true })
+    await shell.openPath(eventDir)
+    return { ok: true, path: eventDir }
+  } catch {
+    return { ok: false }
   }
 })
 

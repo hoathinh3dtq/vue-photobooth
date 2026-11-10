@@ -297,7 +297,66 @@ async function createEvent() {
 function activateEvent(ev: any) {
   activeEventId.value = String(ev.id)
   activeEventName.value = ev.name
-  eventStatus.value = `Việc sự kiện "${ev.name}"`
+  eventStatus.value = `Sự kiện đang hoạt động: ${ev.name}`
+  // Sync to localStorage for Camera/Files
+  localStorage.setItem('event_id', String(ev.id))
+  localStorage.setItem('booth_type', 'event')
+}
+
+async function openEventFolder() {
+  if (!activeEventId.value) { eventStatus.value = 'Chưa chọn sự kiện nào.'; return }
+  try {
+    const eId = activeEventId.value
+    const api = (window as any).electronAPI
+    if (api?.events?.openFolder) {
+      await api.events.openFolder(eId)
+      eventStatus.value = 'Đã mở thư mục ảnh sự kiện.'
+      return
+    }
+    if (api?.openEventFolder) {
+      await api.openEventFolder(eId)
+      eventStatus.value = 'Đã mở thư mục ảnh sự kiện.'
+      return
+    }
+    eventStatus.value = 'Thư mục ảnh sự kiện sẽ được mở sau (desktop build).'
+  } catch { eventStatus.value = 'Không thể mở thư mục ảnh.' }
+}
+
+function openFolderFor(ev: any) {
+  activeEventId.value = String(ev.id)
+  activeEventName.value = ev.name
+  openEventFolder()
+}
+
+function addFrameForEvent(ev: any) {
+  activeEventId.value = String(ev.id)
+  activeEventName.value = ev.name
+  localStorage.setItem('event_id', String(ev.id))
+  localStorage.setItem('booth_type', 'event')
+  router.push('/my-frames')
+}
+
+function goAddFrameForEvent() {
+  if (!activeEventId.value) { eventStatus.value = 'Chưa chọn sự kiện nào.'; return }
+  router.push('/my-frames')
+}
+
+async function stopActiveEvent() {
+  if (!activeEventId.value) return
+  try {
+    const token = localStorage.getItem('auth_token') || ''
+    const host = import.meta.env.VITE_API_HOST || 'http://127.0.0.1:8000'
+    await fetch(`${host}/api/events/${activeEventId.value}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ status: 0 }),
+    })
+    activeEventId.value = ''
+    activeEventName.value = ''
+    localStorage.removeItem('event_id')
+    eventStatus.value = 'Sự kiện đã dừng.'
+    await loadEvents()
+  } catch { eventStatus.value = 'Không thể dừng sự kiện.' }
 }
 
 async function deleteEvent(ev: any) {
@@ -625,7 +684,7 @@ onMounted(() => { void load() })
         <!-- Sự kiện -->
         <div v-if="activeTab === 'event'">
           <div class="ds-card">
-            <div class="ds-card-head"><div>🗓 <strong>TRẠNG THÁI SỰ KIỆN</strong><small>{{ activeEventId ? 'Sự kiện đang hoạt động: ' + activeEventName : 'Chưa chọn sự kiện nào (Ảnh đang lưu bình thường)' }}</small></div></div>
+            <div class="ds-card-head"><div>🗓 <strong>TRẠNG THÁI SỰ KIỆN</strong><small>{{ activeEventId ? 'Sự kiện đang hoạt động: ' + activeEventName : 'Chưa chọn sự kiện nào (Ảnh đang lưu bình thường)' }}</small></div><div class="ds-row"><button class="ds-btn-gray" @click="openEventFolder">📁 Mở thư mục ảnh</button><button class="ds-btn-pink" @click="goAddFrameForEvent">+ Thêm frame cho sự kiện này</button><button v-if="activeEventId" class="ds-btn-pink" style="background:#e14e7f;" @click="stopActiveEvent">Dừng sự kiện này</button></div></div>
           </div>
           <div class="ds-card">
             <div class="ds-card-head"><div><span style="background:#8b5cf6; color:#fff; border-radius:8px; padding:4px 8px;">+</span> <strong>Tạo sự kiện mới</strong><small>Nhập tên sự kiện để ảnh và video của khách được lưu riêng vào một thư mục.</small></div></div>
@@ -644,7 +703,9 @@ onMounted(() => { void load() })
               <div v-for="ev in events" :key="ev.id" class="ds-row" style="border:1px solid #eee; padding:8px; border-radius:8px;">
                 <strong style="flex:1;">{{ ev.name }}</strong>
                 <span class="ds-chip">{{ ev.status === 1 ? 'Đang diễn ra' : 'Hoàn thành' }}</span>
-                <button class="ds-btn-pink" @click="activateEvent(ev)">Kích hoạt</button>
+                <button class="ds-btn-pink" @click="addFrameForEvent(ev)">Thêm frame</button>
+                <button class="ds-btn-gray" @click="openFolderFor(ev)">Mở ảnh</button>
+                <button class="ds-btn-pink" style="background:#6b7280;" @click="activateEvent(ev)">{{ String(activeEventId) === String(ev.id) ? 'Đang chọn' : 'Kích hoạt' }}</button>
                 <button class="ds-btn-gray" @click="deleteEvent(ev)">Xóa</button>
               </div>
             </div>

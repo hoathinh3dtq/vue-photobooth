@@ -112,6 +112,10 @@ const api = {
     ipcRenderer.invoke('save-timelapse', base64),
   saveEventPhoto: (base64: string, eventId: number | string): Promise<string | null> =>
     ipcRenderer.invoke('save-event-photo', base64, eventId),
+  events: {
+    openFolder: (eventId: number | string): Promise<{ ok: boolean; path?: string }> =>
+      ipcRenderer.invoke('events:open-folder', eventId),
+  },
   listEventPhotos: (eventId: number | string): Promise<EventPhotoFile[]> =>
     ipcRenderer.invoke('list-event-photos', eventId),
   readEventPhoto: (filePath: string): Promise<string | null> =>

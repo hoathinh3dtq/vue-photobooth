@@ -57,8 +57,10 @@ export function installTauriBridge(): boolean {
       printImage: async () => ({ ok: false, error: 'PRINTER_NOT_FOUND' }),
       saveTimeLapse: async () => null,
       saveEventPhoto: async () => null,
+      openEventFolder: async () => ({ ok: true }),
       listEventPhotos: async () => [],
       readEventPhoto: async () => null,
+      events: { openFolder: async () => ({ ok: true }) },
       settings: {
         get: async () => ({ printerName: '', zoom: 0.98, offsetX: 0, offsetY: 0 }),
         save: async (p: Record<string, unknown>) => p,
@@ -100,8 +102,12 @@ export function installTauriBridge(): boolean {
     printImage: (dataUrl: string, opts: any) => tauriInvoke('print_image', { dataUrl, opts }),
     saveTimeLapse: (base64: string) => tauriInvoke('save_timelapse', { base64 }),
     saveEventPhoto: (base64: string, eventId: any) => tauriInvoke('save_event_photo', { base64, eventId }),
+    openEventFolder: (eventId: any) => tauriInvoke('open_event_folder', { eventId }),
     listEventPhotos: (eventId: any) => tauriInvoke('list_event_photos', { eventId }),
     readEventPhoto: (filePath: string) => tauriInvoke('read_event_photo', { filePath }),
+    events: {
+      openFolder: (eventId: any) => tauriInvoke('open_event_folder', { eventId }),
+    },
     settings: {
       get: () => tauriInvoke('settings_get'),
       save: (patch: Record<string, unknown>) => tauriInvoke('settings_save', { patch }),
