@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useFlowStore } from '../stores/flow'
 import { startTimeLapse } from '../lib/timelapse'
 
 const flowStore = useFlowStore()
+const router = useRouter()
 
 const selected = ref<'new' | 'print' | null>(null)
 let navTimer: ReturnType<typeof setTimeout> | null = null
@@ -25,10 +27,32 @@ function choose(which: 'new' | 'print'): void {
     else printExisting()
   }, 320)
 }
+
+function logout(): void {
+  localStorage.clear()
+  router.push('/login')
+}
+
+// Nút ⚙ ẩn: bấm 5 lần trong 3 giây mới vào cài đặt (giống Home)
+let settingsClickCount = 0
+let settingsClickTimer: ReturnType<typeof setTimeout> | null = null
+function handleSettingsClick(): void {
+  settingsClickCount += 1
+  if (settingsClickCount >= 5) {
+    if (settingsClickTimer) { clearTimeout(settingsClickTimer); settingsClickTimer = null }
+    settingsClickCount = 0
+    router.push('/settings')
+    return
+  }
+  if (settingsClickTimer) clearTimeout(settingsClickTimer)
+  settingsClickTimer = setTimeout(() => { settingsClickCount = 0; settingsClickTimer = null }, 3000)
+}
 </script>
 
 <template>
   <div class="ea-root">
+    <button class="ea-logout" type="button" aria-label="Đăng xuất" @click="logout" style="right: 7vw;">✕</button>
+    <button class="ea-logout" id="eventSettingsBtn" type="button" aria-label="Cài đặt" @click="handleSettingsClick" style="right: 2.5vw;">⚙</button>
     <svg class="ea-bg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
       <path
         d="M-80,-60 C160,-40 260,60 230,180 C200,300 60,320 -40,380 L-80,940 L-80,-60 Z"
@@ -192,6 +216,20 @@ function choose(which: 'new' | 'print'): void {
   gap: 4vh;
   padding: 3vh 3vw;
   box-sizing: border-box;
+}
+.ea-logout {
+  position: absolute;
+  top: 2.5vh;
+  z-index: 6;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid rgba(242, 113, 155, 0.4);
+  background: rgba(255, 255, 255, 0.7);
+  color: #d14e7d;
+  font-size: 18px;
+  cursor: pointer;
+  opacity: 0.55;
 }
 .ea-bg {
   position: absolute;

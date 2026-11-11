@@ -56,10 +56,11 @@ function fmtArgs(args: unknown[]): string {
 // Tự động đăng nhập nếu chưa có session, để ẩn màn hình login trên mọi máy
 // (code login vẫn giữ nguyên, chỉ bỏ qua khi đã có token).
 async function boot(): Promise<void> {
+  const defaultBooth = (): string => localStorage.getItem('default_booth_code') || 'LOCAL001'
   const token = localStorage.getItem('auth_token')
   if (!token) {
     try {
-      const res = await login('admin@photobooth.com', '123456', 'LOCAL001')
+      const res = await login('admin@photobooth.com', '123456', defaultBooth())
       saveSession(res)
     } catch (e) {
       console.error('auto-login failed', e)
@@ -71,7 +72,7 @@ async function boot(): Promise<void> {
       const res = await fetch(`${String(host).replace(/\/$/, '')}/api/user`, { headers: { Authorization: `Bearer ${token}` } })
       if (res.status === 401 || res.status === 403) {
         localStorage.removeItem('auth_token')
-        const r = await login('admin@photobooth.com', '123456', 'LOCAL001')
+        const r = await login('admin@photobooth.com', '123456', defaultBooth())
         saveSession(r)
       }
     } catch (e) {

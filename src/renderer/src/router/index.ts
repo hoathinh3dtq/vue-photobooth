@@ -5,7 +5,7 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      redirect: '/home',
+      redirect: () => (localStorage.getItem('booth_type') === 'event' ? '/event-action' : '/home'),
     },
     {
       path: '/login',
@@ -73,7 +73,9 @@ const router = createRouter({
 
 router.beforeEach((to) => {
   const hasToken = Boolean(localStorage.getItem('auth_token'))
-  if (to.name === 'login' && hasToken) return { name: 'home' }
+  const homeForBooth = (): { name: string } =>
+    localStorage.getItem('booth_type') === 'event' ? { name: 'event-action' } : { name: 'home' }
+  if (to.name === 'login' && hasToken) return homeForBooth()
   if (to.name !== 'login' && !hasToken) return { name: 'login' }
   return true
 })

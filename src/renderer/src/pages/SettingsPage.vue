@@ -71,6 +71,7 @@ const queueStats = ref({ pending: 0, uploading: 0, failed: 0, done: 0 })
 
 // License
 const machineApiKey = ref('')
+const defaultBoothCode = ref('')
 
 // Event
 const events = ref<any[]>([])
@@ -187,6 +188,7 @@ async function load() {
       offlineFirst.value = s.offlineFirst ?? false
       disablePaymentOffline.value = s.disablePaymentOffline ?? false
       machineApiKey.value = s.machineApiKey || ''
+      defaultBoothCode.value = s.defaultBoothCode || localStorage.getItem('default_booth_code') || ''
       activeEventId.value = s.activeEventId || localStorage.getItem('event_id') || ''
       activeEventName.value = s.activeEventName || ''
     }
@@ -249,10 +251,18 @@ async function save() {
       offlineFirst: offlineFirst.value,
       disablePaymentOffline: disablePaymentOffline.value,
       machineApiKey: machineApiKey.value,
+      defaultBoothCode: defaultBoothCode.value.trim().toUpperCase(),
       activeEventId: activeEventId.value,
       activeEventName: activeEventName.value,
     })
     status.value = 'Đã lưu cài đặt.'
+    // Mã booth của máy này — dùng khi auto-login (boot)
+    const boothTrim = defaultBoothCode.value.trim().toUpperCase()
+    if (boothTrim) {
+      localStorage.setItem('default_booth_code', boothTrim)
+    } else {
+      localStorage.removeItem('default_booth_code')
+    }
     // sync active event to localStorage
     if (activeEventId.value) {
       localStorage.setItem('event_id', activeEventId.value)
@@ -268,7 +278,9 @@ async function loadEvents() {
   try {
     const token = localStorage.getItem('auth_token') || ''
     const host = import.meta.env.VITE_API_HOST || 'http://127.0.0.1:8000'
-    const res = await fetch(`${host}/api/events`, { headers: { Authorization: `Bearer ${token}` } })
+    const bc = localStorage.getItem('booth_code') || ''
+    const url = `${host}/api/events${bc ? '?booth_code=' + encodeURIComponent(bc) : ''}`
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
     if (!res.ok) return
     const json = await res.json()
     events.value = json?.events || json?.data || []
@@ -409,7 +421,7 @@ async function createEvent() {
     const res = await fetch(`${host}/api/events`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ name, status: 1 }),
+      body: JSON.stringify({ name, status: 1, booth_code: localStorage.getItem('booth_code') || '' }),
     })
     const json = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error((json as any)?.message || 'Tạo sự kiện thất bại')
@@ -985,6 +997,9 @@ onMounted(() => { void load() })
           <div class="ds-card">
             <div class="ds-card-head"><div>🔑 <strong>Kết nối &amp; Bản quyền</strong><small>Kiểm tra kết nối và bản quyền của máy.</small></div><button class="ds-btn-pink">Kiểm tra bản quyền</button></div>
             <div class="ds-body">
+              <label class="ds-label">MÃ BOOTH CỦA MÁY NÀY</label>
+              <input v-model="defaultBoothCode" placeholder="VD: EVENT001 · EVENT005 · LOCAL001" style="width:100%; font-family:monospace; text-transform:uppercase;" />
+              <div class="ds-info-warn">Mỗi máy một mã booth riêng. Booth event sẽ boot thẳng vào bảng Sự kiện (không cần nút Home). Cần khởi động lại app sau khi lưu để máy đọc lại mã mới.</div>
               <label class="ds-label">MACHINE API KEY</label>
               <input v-model="machineApiKey" placeholder="hihi_machine_xxxxxxxxxxxx" style="width:100%;" />
               <div class="ds-info">Máy đang kết nối bằng bản dùng thử.</div>

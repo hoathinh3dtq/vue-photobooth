@@ -71,11 +71,16 @@ async function loadFrames() {
   }
 }
 
+function eventsListUrl(host: string): string {
+  const bc = localStorage.getItem('booth_code') || ''
+  return `${host}/api/events${bc ? '?booth_code=' + encodeURIComponent(bc) : ''}`
+}
+
 async function loadEvents() {
   try {
     const token = localStorage.getItem('auth_token') || ''
     const host = import.meta.env.VITE_API_HOST || 'http://127.0.0.1:8000'
-    const res = await fetch(`${host}/api/events`, { headers: { Authorization: `Bearer ${token}` } })
+    const res = await fetch(eventsListUrl(host), { headers: { Authorization: `Bearer ${token}` } })
     if (!res.ok) return
     const j = await res.json()
     events.value = j?.events || j?.data || []
@@ -91,7 +96,7 @@ async function createInlineEvent() {
     const res = await fetch(`${host}/api/events`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ name, status: 1 }),
+      body: JSON.stringify({ name, status: 1, booth_code: localStorage.getItem('booth_code') || '' }),
     })
     const j = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(j?.message || 'Tạo sự kiện thất bại')
