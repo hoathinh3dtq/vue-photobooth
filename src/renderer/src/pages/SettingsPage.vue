@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { type FrameItem } from '../lib/api/frames'
+import { apiFetch, type FrameItem } from '../lib/api/frames'
 
 const router = useRouter()
 
@@ -86,6 +86,8 @@ const framePickerOpen = ref('')
 const selectedFrameIds = ref<Record<string, number[]>>({})
 const frameSaving = ref(false)
 const frameStatus = ref('')
+const frameUploading = ref(false)
+const frameUploadStatus = ref('')
 
 const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: 'general', label: 'Chung & Trải nghiệm', icon: '☑' },
@@ -328,6 +330,50 @@ function toggleFrameForEvent(ev: any, frameId: number) {
   if (idx >= 0) cur.splice(idx, 1)
   else cur.push(Number(frameId))
   selectedFrameIds.value = { ...selectedFrameIds.value, [key]: cur }
+}
+
+function triggerLocalFramePick(ev: any) {
+  const el = document.getElementById('frame-file-input-' + ev.id) as HTMLInputElement | null
+  el?.click()
+}
+
+async function onLocalFrameFiles(ev: any, e: Event) {
+  const input = e.target as HTMLInputElement
+  const files = Array.from(input.files || [])
+  if (!files.length) return
+  frameUploading.value = true
+  frameUploadStatus.value = ''
+  let done = 0
+  const newIds: number[] = []
+  for (const file of files) {
+    try {
+      const fd = new FormData()
+      fd.append('image', file)
+      fd.append('name', file.name.replace(/\.[^.]+$/, ''))
+      fd.append('frame', 'vertical')
+      fd.append('event_id', String(ev.id))
+      const res = await apiFetch('/api/frames/upload', { method: 'POST', body: fd })
+      const j = await res.json().catch(() => null)
+      if (!res.ok) throw new Error((j && j.message) || 'HTTP ' + res.status)
+      if (j?.data?.id != null) newIds.push(Number(j.data.id))
+      done++
+    } catch (err) {
+      console.error('frame upload failed', err)
+    }
+  }
+  const key = String(ev.id)
+  const cur = [...pickerIds(ev)]
+  for (const id of newIds) {
+    if (!cur.includes(id)) cur.push(id)
+  }
+  selectedFrameIds.value = { ...selectedFrameIds.value, [key]: cur }
+  await loadAllFrames()
+  await loadEvents()
+  frameUploadStatus.value = done
+    ? `Đã thêm ${done} frame từ máy vào sự kiện "${ev.name}".`
+    : 'Lỗi tải frame từ máy.'
+  frameUploading.value = false
+  input.value = ''
 }
 
 async function saveFramesForEvent(ev: any) {
@@ -882,6 +928,11 @@ onMounted(() => { void load() })
                       <img :src="frameImgUrl(f)" :alt="String(f.name)" style="width:100%;height:72px;object-fit:contain;border-radius:8px;background:#fdf3f7;" />
                       <small style="display:block;font-size:10px;word-break:break-word;margin-top:3px;">{{ f.name }}</small>
                     </button>
+                  </div>
+                  <div class="ds-row" style="margin-top:8px; align-items:center;">
+                    <input :id="'frame-file-input-' + ev.id" type="file" accept="image/png" multiple style="display:none" @change="(e) => onLocalFrameFiles(ev, e)" />
+                    <button class="ds-btn-gray" :disabled="frameUploading" @click="triggerLocalFramePick(ev)">{{ frameUploading ? 'Đang tải...' : '📤 Tải frame từ máy' }}</button>
+                    <small class="ds-hint" v-if="frameUploadStatus" style="margin:0;">{{ frameUploadStatus }}</small>
                   </div>
                   <div class="ds-row" style="margin-top:8px; align-items:center;">
                     <button class="ds-btn-pink" :disabled="frameSaving" @click="saveFramesForEvent(ev)">{{ frameSaving ? 'Đang lưu...' : '💾 Lưu frame đã chọn' }}</button>
